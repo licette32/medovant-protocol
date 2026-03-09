@@ -1,0 +1,14 @@
+.anchor
+target
+node_modules
+.DS_Store
+test-ledger
+*.swp
+.env
+dist
+
+run-client.ps1
+scripts/idl
+scripts/copy-idl.js
+DOCUMENTACION.md
+INTEGRITY_REPORT.md
