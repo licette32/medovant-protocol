@@ -5,8 +5,10 @@
 import * as anchor from "@coral-xyz/anchor";
 import { Program } from "@coral-xyz/anchor";
 import { Medovant } from "../target/types/medovant";
-import { PublicKey, Keypair, LAMPORTS_PER_SOL } from "@solana/web3.js";
+import { PublicKey, Keypair, LAMPORTS_PER_SOL, SystemProgram } from "@solana/web3.js";
 import { expect } from "chai";
+
+const REWARD_LAMPORTS = 500_000;
 
 describe("medovant", () => {
   const provider = anchor.AnchorProvider.env();
@@ -20,6 +22,7 @@ describe("medovant", () => {
 
   let medicalAssetPda: PublicKey;
   let medicalAssetBump: number;
+  let escrowVaultPda: PublicKey;
 
   before(async () => {
     const sig = await provider.connection.requestAirdrop(
@@ -40,6 +43,11 @@ describe("medovant", () => {
         hospital.publicKey.toBuffer(),
         assetId.toArrayLike(Buffer, "le", 8),
       ],
+      program.programId
+    );
+
+    [escrowVaultPda] = PublicKey.findProgramAddressSync(
+      [Buffer.from("vault"), medicalAssetPda.toBuffer()],
       program.programId
     );
   });
@@ -63,16 +71,45 @@ describe("medovant", () => {
     expect(account.status).to.include.keys("active");
     expect(account.lastMaintenance.toNumber()).to.be.greaterThan(0);
     expect(account.bump).to.equal(medicalAssetBump);
+    expect(account.maintenanceReward.toString()).to.equal("0");
+    expect(account.failureCount).to.equal(0);
 
     // Nota: getTransaction puede devolver null en localnet; la lógica se verifica con account.status
   });
 
+  it("report_issue con reward 0 falla con RewardTooLow", async () => {
+    try {
+      await program.methods
+        .reportIssue(new anchor.BN(0))
+        .accounts({
+          hospital: hospital.publicKey,
+          medicalAsset: medicalAssetPda,
+          escrowVault: escrowVaultPda,
+          systemProgram: SystemProgram.programId,
+        })
+        .signers([hospital])
+        .rpc();
+      expect.fail("Debería haber lanzado RewardTooLow");
+    } catch (e: unknown) {
+      const msg =
+        e && typeof e === "object" && "message" in e
+          ? String((e as { message: string }).message)
+          : "";
+      expect(msg).to.satisfy(
+        (m: string) =>
+          m.includes("RewardTooLow") || m.includes("6003") || m.includes("0x1773")
+      );
+    }
+  });
+
   it("report_issue: solo si status es Active, pasa a IssueReported", async () => {
     const tx = await program.methods
-      .reportIssue()
+      .reportIssue(new anchor.BN(REWARD_LAMPORTS))
       .accounts({
         hospital: hospital.publicKey,
         medicalAsset: medicalAssetPda,
+        escrowVault: escrowVaultPda,
+        systemProgram: SystemProgram.programId,
       })
       .signers([hospital])
       .rpc();
@@ -80,6 +117,10 @@ describe("medovant", () => {
     const account = await program.account.medicalAsset.fetch(medicalAssetPda);
     expect(account.status).to.exist;
     expect(account.status).to.include.keys("issueReported");
+    expect(account.failureCount).to.equal(1);
+    expect(account.maintenanceReward.toString()).to.equal(
+      REWARD_LAMPORTS.toString()
+    );
 
     // Nota: getTransaction puede devolver null en localnet
   });
@@ -87,24 +128,29 @@ describe("medovant", () => {
   it("report_issue falla si status no es Active (ya IssueReported)", async () => {
     try {
       await program.methods
-        .reportIssue()
+        .reportIssue(new anchor.BN(1))
         .accounts({
           hospital: hospital.publicKey,
           medicalAsset: medicalAssetPda,
+          escrowVault: escrowVaultPda,
+          systemProgram: SystemProgram.programId,
         })
         .signers([hospital])
         .rpc();
       expect.fail("Debería haber lanzado AssetNotActive");
     } catch (e: unknown) {
-      const msg = e && typeof e === "object" && "message" in e ? String((e as { message: string }).message) : "";
-      expect(msg).to.satisfy((m: string) => m.includes("AssetNotActive") || m.includes("6001") || m.includes("0x1771"));
+      const msg =
+        e && typeof e === "object" && "message" in e
+          ? String((e as { message: string }).message)
+          : "";
+      expect(msg).to.satisfy(
+        (m: string) =>
+          m.includes("AssetNotActive") || m.includes("6001") || m.includes("0x1771")
+      );
     }
   });
 
   it("complete_maintenance: solo si IssueReported → Active, actualiza last_maintenance y paga al técnico", async () => {
-    const hospitalBalanceBefore = await provider.connection.getBalance(
-      hospital.publicKey
-    );
     const techBalanceBefore = await provider.connection.getBalance(
       technician.publicKey
     );
@@ -115,24 +161,22 @@ describe("medovant", () => {
         hospital: hospital.publicKey,
         technician: technician.publicKey,
         medicalAsset: medicalAssetPda,
-        systemProgram: anchor.web3.SystemProgram.programId,
+        escrowVault: escrowVaultPda,
+        systemProgram: SystemProgram.programId,
       })
       .signers([hospital, technician])
       .rpc();
 
-    const account = await program.account.medicalAsset.fetch(medicalAssetPda);
-    expect(account.status).to.exist;
-    expect(account.status).to.include.keys("active");
-    expect(account.lastMaintenance.toNumber()).to.be.greaterThan(0);
+    const assetAfter = await program.account.medicalAsset.fetch(medicalAssetPda);
+    expect(assetAfter.status).to.exist;
+    expect(assetAfter.status).to.include.keys("active");
+    expect(assetAfter.lastMaintenance.toNumber()).to.be.greaterThan(0);
+    expect(assetAfter.maintenanceReward.toString()).to.equal("0");
 
     const techBalanceAfter = await provider.connection.getBalance(
       technician.publicKey
     );
-    expect(techBalanceAfter - techBalanceBefore).to.equal(10_000);
-    const hospitalBalanceAfter = await provider.connection.getBalance(
-      hospital.publicKey
-    );
-    expect(hospitalBalanceBefore - hospitalBalanceAfter).to.be.at.least(10_000);
+    expect(techBalanceAfter - techBalanceBefore).to.equal(REWARD_LAMPORTS);
 
     // Nota: getTransaction puede devolver null en localnet
   });
@@ -145,14 +189,21 @@ describe("medovant", () => {
           hospital: hospital.publicKey,
           technician: technician.publicKey,
           medicalAsset: medicalAssetPda,
-          systemProgram: anchor.web3.SystemProgram.programId,
+          escrowVault: escrowVaultPda,
+          systemProgram: SystemProgram.programId,
         })
         .signers([hospital, technician])
         .rpc();
       expect.fail("Debería haber lanzado NoIssueReported");
     } catch (e: unknown) {
-      const msg = e && typeof e === "object" && "message" in e ? String((e as { message: string }).message) : "";
-      expect(msg).to.satisfy((m: string) => m.includes("NoIssueReported") || m.includes("6002") || m.includes("0x1772"));
+      const msg =
+        e && typeof e === "object" && "message" in e
+          ? String((e as { message: string }).message)
+          : "";
+      expect(msg).to.satisfy(
+        (m: string) =>
+          m.includes("NoIssueReported") || m.includes("6002") || m.includes("0x1772")
+      );
     }
   });
 

@@ -1,12 +1,10 @@
 //! Medovant – maintenance escrow for medical equipment on Solana (Anchor, PDAs, CRUD, events).
 
 use anchor_lang::prelude::*;
+use anchor_lang::solana_program::program_error::ProgramError;
 use anchor_lang::system_program;
 
 declare_id!("5JMd8ADy1KHBhohX6NLbz6WQdyCQTfLd55Gmzo2r34WD");
-
-/// Lamports transferred from hospital to technician when maintenance is completed.
-pub const MAINTENANCE_FEE_LAMPORTS: u64 = 10_000;
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, PartialEq, Eq)]
 #[repr(u8)]
@@ -28,8 +26,11 @@ pub enum MedovantError {
     #[msg("No hay avería reportada; el equipo debe estar en estado IssueReported")]
     NoIssueReported,
 
-    #[msg("Saldo insuficiente para pagar la tarifa de mantenimiento al técnico")]
-    InsufficientBalanceForMaintenanceFee,
+    #[msg("Maintenance reward must be greater than zero")]
+    RewardTooLow,
+
+    #[msg("Escrow payout would leave the vault below rent exemption")]
+    EscrowRentViolation,
 }
 
 #[event]
@@ -54,7 +55,7 @@ pub struct MaintenanceCompleted {
     pub timestamp: i64,
 }
 
-/// On-chain account for one medical equipment item (PDA). Fixed size: 58 bytes.
+/// On-chain account for one medical equipment item (PDA). Fixed size: 70 bytes (discriminator + data).
 #[account]
 pub struct MedicalAsset {
     pub hospital: Pubkey,
@@ -62,10 +63,15 @@ pub struct MedicalAsset {
     pub status: AssetStatus,
     pub last_maintenance: i64,
     pub bump: u8,
+    /// Lamports locked in the escrow vault PDA for the pending maintenance payout.
+    pub maintenance_reward: u64,
+    /// Total number of issues reported on-chain for this asset.
+    pub failure_count: u32,
 }
 
 impl MedicalAsset {
-    pub const LEN: usize = 8 + 32 + 8 + 1 + 8 + 1;
+    /// Account data size excluding 8-byte Anchor discriminator (62 bytes).
+    pub const INIT_SPACE: usize = 32 + 8 + 1 + 8 + 1 + 8 + 4;
 }
 
 #[program]
@@ -85,6 +91,8 @@ pub mod medovant {
         asset.status = AssetStatus::Active;
         asset.last_maintenance = now;
         asset.bump = ctx.bumps.medical_asset;
+        asset.maintenance_reward = 0;
+        asset.failure_count = 0;
 
         emit!(AssetInitialized {
             hospital: asset.hospital,
@@ -95,19 +103,33 @@ pub mod medovant {
         Ok(())
     }
 
-    // Hospital reports an issue; only allowed when equipment is Active.
-    // Accounts: hospital (signer, must own PDA via has_one), medical_asset (mut PDA).
-    // State: Active -> IssueReported.
+    // Hospital locks `reward` lamports into the escrow vault PDA and marks an issue.
+    // Accounts: hospital (mut signer), medical_asset (mut PDA), escrow_vault (init_if_needed, space 0), system_program.
+    // State: Active -> IssueReported; maintenance_reward = reward; failure_count += 1.
     // Emits: IssueReported.
-    pub fn report_issue(ctx: Context<ReportIssue>) -> Result<()> {
+    pub fn report_issue(ctx: Context<ReportIssue>, reward: u64) -> Result<()> {
+        require!(reward > 0, MedovantError::RewardTooLow);
+
+        {
+            let asset = &ctx.accounts.medical_asset;
+            require!(asset.status == AssetStatus::Active, MedovantError::AssetNotActive);
+        }
+
+        system_program::transfer(
+            CpiContext::new(
+                ctx.accounts.system_program.to_account_info(),
+                system_program::Transfer {
+                    from: ctx.accounts.hospital.to_account_info(),
+                    to: ctx.accounts.escrow_vault.to_account_info(),
+                },
+            ),
+            reward,
+        )?;
+
         let asset = &mut ctx.accounts.medical_asset;
         let now = Clock::get()?.unix_timestamp;
-
-        require!(
-            asset.status == AssetStatus::Active,
-            MedovantError::AssetNotActive
-        );
-
+        asset.maintenance_reward = reward;
+        asset.failure_count = asset.failure_count.saturating_add(1);
         asset.status = AssetStatus::IssueReported;
 
         emit!(IssueReported {
@@ -119,36 +141,43 @@ pub mod medovant {
         Ok(())
     }
 
-    // Completes maintenance: escrows MAINTENANCE_FEE_LAMPORTS from hospital to technician via System Program CPI.
-    // Accounts: hospital (signer, mut), technician (signer, mut), medical_asset (mut PDA), system_program.
-    // State: IssueReported -> Active; last_maintenance = now. Requires hospital balance >= fee.
+    // Pays locked reward from the program-owned escrow vault PDA to the technician.
+    // SystemProgram::Transfer cannot debit program-owned accounts (runtime: "does not own");
+    // with space > 0 the same CPI also fails as `from` ("must not carry data"). Lamports are
+    // moved here as the vault owner program.
+    // Accounts: hospital (signer), technician (signer), medical_asset (mut PDA), escrow_vault (mut PDA), system_program.
+    // State: IssueReported -> Active; maintenance_reward = 0; last_maintenance = now.
     // Emits: MaintenanceCompleted.
     pub fn complete_maintenance(ctx: Context<CompleteMaintenance>) -> Result<()> {
-        let asset = &mut ctx.accounts.medical_asset;
-        let now = Clock::get()?.unix_timestamp;
-
         require!(
-            asset.status == AssetStatus::IssueReported,
+            ctx.accounts.medical_asset.status == AssetStatus::IssueReported,
             MedovantError::NoIssueReported
         );
 
-        let hospital_lamports = ctx.accounts.hospital.to_account_info().lamports();
+        let reward_amount = ctx.accounts.medical_asset.maintenance_reward;
+
+        let vault_info = ctx.accounts.escrow_vault.to_account_info();
+        let tech_info = ctx.accounts.technician.to_account_info();
+
+        let min_balance = Rent::get()?.minimum_balance(vault_info.data_len());
+        let new_vault_lamports = vault_info
+            .lamports()
+            .checked_sub(reward_amount)
+            .ok_or(ProgramError::InsufficientFunds)?;
         require!(
-            hospital_lamports >= MAINTENANCE_FEE_LAMPORTS,
-            MedovantError::InsufficientBalanceForMaintenanceFee
+            new_vault_lamports >= min_balance,
+            MedovantError::EscrowRentViolation
         );
 
-        system_program::transfer(
-            CpiContext::new(
-                ctx.accounts.system_program.to_account_info(),
-                system_program::Transfer {
-                    from: ctx.accounts.hospital.to_account_info(),
-                    to: ctx.accounts.technician.to_account_info(),
-                },
-            ),
-            MAINTENANCE_FEE_LAMPORTS,
-        )?;
+        **vault_info.try_borrow_mut_lamports()? = new_vault_lamports;
+        **tech_info.try_borrow_mut_lamports()? = tech_info
+            .lamports()
+            .checked_add(reward_amount)
+            .ok_or(ProgramError::InvalidArgument)?;
 
+        let asset = &mut ctx.accounts.medical_asset;
+        let now = Clock::get()?.unix_timestamp;
+        asset.maintenance_reward = 0;
         asset.status = AssetStatus::Active;
         asset.last_maintenance = now;
 
@@ -182,7 +211,7 @@ pub struct InitializeAsset<'info> {
     #[account(
         init,
         payer = hospital,
-        space = 8 + 32 + 8 + 1 + 8 + 1,
+        space = 8 + MedicalAsset::INIT_SPACE,
         seeds = [b"equipment", hospital.key().as_ref(), &asset_id.to_le_bytes()],
         bump
     )]
@@ -192,16 +221,30 @@ pub struct InitializeAsset<'info> {
 }
 
 #[derive(Accounts)]
+#[instruction(reward: u64)]
 pub struct ReportIssue<'info> {
+    #[account(mut)]
     pub hospital: Signer<'info>,
 
     #[account(
         mut,
-        has_one = hospital,
         seeds = [b"equipment", hospital.key().as_ref(), &medical_asset.asset_id.to_le_bytes()],
-        bump = medical_asset.bump
+        bump = medical_asset.bump,
+        has_one = hospital,
     )]
     pub medical_asset: Account<'info, MedicalAsset>,
+
+    #[account(
+        init_if_needed,
+        payer = hospital,
+        space = 8,
+        seeds = [b"vault", medical_asset.key().as_ref()],
+        bump
+    )]
+    /// CHECK: Program-owned vault PDA, holds escrow lamports only
+    pub escrow_vault: UncheckedAccount<'info>,
+
+    pub system_program: Program<'info, System>,
 }
 
 #[derive(Accounts)]
@@ -218,6 +261,14 @@ pub struct CompleteMaintenance<'info> {
         bump = medical_asset.bump
     )]
     pub medical_asset: Account<'info, MedicalAsset>,
+
+    #[account(
+        mut,
+        seeds = [b"vault", medical_asset.key().as_ref()],
+        bump
+    )]
+    /// CHECK: Program-owned vault PDA, holds escrow lamports
+    pub escrow_vault: UncheckedAccount<'info>,
 
     pub system_program: Program<'info, System>,
 }
