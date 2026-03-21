@@ -1,7 +1,7 @@
 //! Medovant – maintenance escrow for medical equipment on Solana (Anchor, PDAs, CRUD, events).
 
 use anchor_lang::prelude::*;
-use anchor_lang::solana_program::program_error::ProgramError;
+use anchor_lang::solana_program::system_program as system_program_id;
 use anchor_lang::system_program;
 
 declare_id!("5JMd8ADy1KHBhohX6NLbz6WQdyCQTfLd55Gmzo2r34WD");
@@ -28,9 +28,6 @@ pub enum MedovantError {
 
     #[msg("Maintenance reward must be greater than zero")]
     RewardTooLow,
-
-    #[msg("Escrow payout would leave the vault below rent exemption")]
-    EscrowRentViolation,
 }
 
 #[event]
@@ -103,8 +100,9 @@ pub mod medovant {
         Ok(())
     }
 
-    // Hospital locks `reward` lamports into the escrow vault PDA and marks an issue.
-    // Accounts: hospital (mut signer), medical_asset (mut PDA), escrow_vault (init_if_needed, space 0), system_program.
+    // Hospital locks `reward` lamports into the system-owned escrow vault PDA and marks an issue.
+    // Vault is created on first use via CPI create_account (owner = System Program, space 0) + invoke_signed.
+    // Accounts: hospital (mut signer), medical_asset (mut PDA), escrow_vault (mut PDA, seeds), system_program.
     // State: Active -> IssueReported; maintenance_reward = reward; failure_count += 1.
     // Emits: IssueReported.
     pub fn report_issue(ctx: Context<ReportIssue>, reward: u64) -> Result<()> {
@@ -113,6 +111,35 @@ pub mod medovant {
         {
             let asset = &ctx.accounts.medical_asset;
             require!(asset.status == AssetStatus::Active, MedovantError::AssetNotActive);
+        }
+
+        let vault_ai = ctx.accounts.escrow_vault.to_account_info();
+        if vault_ai.lamports() == 0 {
+            let medical_key = ctx.accounts.medical_asset.key();
+            let bump = ctx.bumps.escrow_vault;
+            let seeds = &[
+                b"vault".as_ref(),
+                medical_key.as_ref(),
+                &[bump],
+            ];
+            let signer = &[&seeds[..]];
+
+            let rent = Rent::get()?;
+            let lamports = rent.minimum_balance(0);
+
+            system_program::create_account(
+                CpiContext::new_with_signer(
+                    ctx.accounts.system_program.to_account_info(),
+                    system_program::CreateAccount {
+                        from: ctx.accounts.hospital.to_account_info(),
+                        to: vault_ai.clone(),
+                    },
+                    signer,
+                ),
+                lamports,
+                0,
+                &system_program_id::ID,
+            )?;
         }
 
         system_program::transfer(
@@ -141,10 +168,7 @@ pub mod medovant {
         Ok(())
     }
 
-    // Pays locked reward from the program-owned escrow vault PDA to the technician.
-    // SystemProgram::Transfer cannot debit program-owned accounts (runtime: "does not own");
-    // with space > 0 the same CPI also fails as `from` ("must not carry data"). Lamports are
-    // moved here as the vault owner program.
+    // Pays locked reward from the system-owned escrow vault PDA to the technician (CPI + invoke_signed).
     // Accounts: hospital (signer), technician (signer), medical_asset (mut PDA), escrow_vault (mut PDA), system_program.
     // State: IssueReported -> Active; maintenance_reward = 0; last_maintenance = now.
     // Emits: MaintenanceCompleted.
@@ -156,24 +180,26 @@ pub mod medovant {
 
         let reward_amount = ctx.accounts.medical_asset.maintenance_reward;
 
-        let vault_info = ctx.accounts.escrow_vault.to_account_info();
-        let tech_info = ctx.accounts.technician.to_account_info();
+        let medical_key = ctx.accounts.medical_asset.key();
+        let bump = ctx.bumps.escrow_vault;
+        let seeds = &[
+            b"vault".as_ref(),
+            medical_key.as_ref(),
+            &[bump],
+        ];
+        let signer = &[&seeds[..]];
 
-        let min_balance = Rent::get()?.minimum_balance(vault_info.data_len());
-        let new_vault_lamports = vault_info
-            .lamports()
-            .checked_sub(reward_amount)
-            .ok_or(ProgramError::InsufficientFunds)?;
-        require!(
-            new_vault_lamports >= min_balance,
-            MedovantError::EscrowRentViolation
-        );
-
-        **vault_info.try_borrow_mut_lamports()? = new_vault_lamports;
-        **tech_info.try_borrow_mut_lamports()? = tech_info
-            .lamports()
-            .checked_add(reward_amount)
-            .ok_or(ProgramError::InvalidArgument)?;
+        system_program::transfer(
+            CpiContext::new_with_signer(
+                ctx.accounts.system_program.to_account_info(),
+                system_program::Transfer {
+                    from: ctx.accounts.escrow_vault.to_account_info(),
+                    to: ctx.accounts.technician.to_account_info(),
+                },
+                signer,
+            ),
+            reward_amount,
+        )?;
 
         let asset = &mut ctx.accounts.medical_asset;
         let now = Clock::get()?.unix_timestamp;
@@ -235,13 +261,11 @@ pub struct ReportIssue<'info> {
     pub medical_asset: Account<'info, MedicalAsset>,
 
     #[account(
-        init_if_needed,
-        payer = hospital,
-        space = 8,
+        mut,
         seeds = [b"vault", medical_asset.key().as_ref()],
         bump
     )]
-    /// CHECK: Program-owned vault PDA, holds escrow lamports only
+    /// CHECK: System-owned vault PDA (space 0); created via CPI in report_issue if empty.
     pub escrow_vault: UncheckedAccount<'info>,
 
     pub system_program: Program<'info, System>,
@@ -267,7 +291,7 @@ pub struct CompleteMaintenance<'info> {
         seeds = [b"vault", medical_asset.key().as_ref()],
         bump
     )]
-    /// CHECK: Program-owned vault PDA, holds escrow lamports
+    /// CHECK: System-owned vault PDA, escrow lamports only
     pub escrow_vault: UncheckedAccount<'info>,
 
     pub system_program: Program<'info, System>,
