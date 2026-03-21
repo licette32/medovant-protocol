@@ -5,10 +5,10 @@ anchor_version = "0.32.1"
 resolution = true
 skip-lint = false
 
-[programs.devnet]
+[programs.localnet]
 medovant = "5JMd8ADy1KHBhohX6NLbz6WQdyCQTfLd55Gmzo2r34WD"
 
-[programs.localnet]
+[programs.devnet]
 medovant = "5JMd8ADy1KHBhohX6NLbz6WQdyCQTfLd55Gmzo2r34WD"
 
 [registry]

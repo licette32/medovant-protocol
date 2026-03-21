@@ -1,11 +1,11 @@
-//! Medovant – Gestión de equipos médicos en Solana (Anchor, PDA, CRUD, eventos).
+//! Medovant – maintenance escrow for medical equipment on Solana (Anchor, PDAs, CRUD, events).
 
 use anchor_lang::prelude::*;
 use anchor_lang::system_program;
 
 declare_id!("5JMd8ADy1KHBhohX6NLbz6WQdyCQTfLd55Gmzo2r34WD");
 
-// fee que paga el hospital al tecnico por cada mantenimiento
+/// Lamports transferred from hospital to technician when maintenance is completed.
 pub const MAINTENANCE_FEE_LAMPORTS: u64 = 10_000;
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, PartialEq, Eq)]
@@ -54,7 +54,7 @@ pub struct MaintenanceCompleted {
     pub timestamp: i64,
 }
 
-/// Cuenta PDA por equipo médico. Tamaño: 58 bytes.
+/// On-chain account for one medical equipment item (PDA). Fixed size: 58 bytes.
 #[account]
 pub struct MedicalAsset {
     pub hospital: Pubkey,
@@ -72,7 +72,10 @@ impl MedicalAsset {
 pub mod medovant {
     use super::*;
 
-    /// Crea la PDA del equipo médico. Hospital firma y paga.
+    // Registers a new equipment PDA for this hospital and asset_id.
+    // Accounts: hospital (signer, payer), medical_asset (init PDA), system_program.
+    // State: creates MedicalAsset with status Active and last_maintenance = now.
+    // Emits: AssetInitialized.
     pub fn initialize_asset(ctx: Context<InitializeAsset>, asset_id: u64) -> Result<()> {
         let asset = &mut ctx.accounts.medical_asset;
         let now = Clock::get()?.unix_timestamp;
@@ -92,7 +95,10 @@ pub mod medovant {
         Ok(())
     }
 
-    /// reporta averia - solo si status es Active
+    // Hospital reports an issue; only allowed when equipment is Active.
+    // Accounts: hospital (signer, must own PDA via has_one), medical_asset (mut PDA).
+    // State: Active -> IssueReported.
+    // Emits: IssueReported.
     pub fn report_issue(ctx: Context<ReportIssue>) -> Result<()> {
         let asset = &mut ctx.accounts.medical_asset;
         let now = Clock::get()?.unix_timestamp;
@@ -113,7 +119,10 @@ pub mod medovant {
         Ok(())
     }
 
-    /// completa mantenimiento: paga al tecnico, vuelve a Active
+    // Completes maintenance: escrows MAINTENANCE_FEE_LAMPORTS from hospital to technician via System Program CPI.
+    // Accounts: hospital (signer, mut), technician (signer, mut), medical_asset (mut PDA), system_program.
+    // State: IssueReported -> Active; last_maintenance = now. Requires hospital balance >= fee.
+    // Emits: MaintenanceCompleted.
     pub fn complete_maintenance(ctx: Context<CompleteMaintenance>) -> Result<()> {
         let asset = &mut ctx.accounts.medical_asset;
         let now = Clock::get()?.unix_timestamp;
@@ -153,7 +162,10 @@ pub mod medovant {
         Ok(())
     }
 
-    /// da de baja el equipo y cierra la cuenta (rent al hospital)
+    // Hospital decommissions equipment; PDA is closed and rent returned to hospital.
+    // Accounts: hospital (signer), medical_asset (mut PDA, close = hospital, has_one hospital).
+    // State: sets Decommissioned then Anchor closes the account.
+    // Emits: none.
     pub fn decommission_asset(ctx: Context<DecommissionAsset>) -> Result<()> {
         let asset = &mut ctx.accounts.medical_asset;
         asset.status = AssetStatus::Decommissioned;
@@ -161,7 +173,6 @@ pub mod medovant {
     }
 }
 
-/// Cuentas para initialize_asset
 #[derive(Accounts)]
 #[instruction(asset_id: u64)]
 pub struct InitializeAsset<'info> {
@@ -180,7 +191,6 @@ pub struct InitializeAsset<'info> {
     pub system_program: Program<'info, System>,
 }
 
-/// report_issue - hospital tiene que ser el dueño
 #[derive(Accounts)]
 pub struct ReportIssue<'info> {
     pub hospital: Signer<'info>,
@@ -194,7 +204,6 @@ pub struct ReportIssue<'info> {
     pub medical_asset: Account<'info, MedicalAsset>,
 }
 
-/// complete_maintenance - hospital y tecnico firman
 #[derive(Accounts)]
 pub struct CompleteMaintenance<'info> {
     #[account(mut)]
@@ -213,7 +222,6 @@ pub struct CompleteMaintenance<'info> {
     pub system_program: Program<'info, System>,
 }
 
-/// decommission - cierra PDA y devuelve rent
 #[derive(Accounts)]
 pub struct DecommissionAsset<'info> {
     #[account(mut)]
