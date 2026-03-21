@@ -28,6 +28,9 @@ pub enum MedovantError {
 
     #[msg("Maintenance reward must be greater than zero")]
     RewardTooLow,
+
+    #[msg("Technician profile pubkey does not match the signing technician")]
+    TechnicianProfileMismatch,
 }
 
 #[event]
@@ -45,11 +48,18 @@ pub struct IssueReported {
 }
 
 #[event]
+pub struct TechnicianRegistered {
+    pub technician: Pubkey,
+    pub timestamp: i64,
+}
+
+#[event]
 pub struct MaintenanceCompleted {
     pub hospital: Pubkey,
     pub asset_id: u64,
     pub technician: Pubkey,
     pub timestamp: i64,
+    pub jobs_completed: u32,
 }
 
 /// On-chain account for one medical equipment item (PDA). Fixed size: 70 bytes (discriminator + data).
@@ -71,9 +81,40 @@ impl MedicalAsset {
     pub const INIT_SPACE: usize = 32 + 8 + 1 + 8 + 1 + 8 + 4;
 }
 
+/// On-chain reputation for a technician: completed jobs and cumulative escrow payouts.
+/// One PDA per technician wallet; used when completing maintenance to update stats atomically with payout.
+#[account]
+pub struct TechnicianProfile {
+    pub technician: Pubkey,
+    pub jobs_completed: u32,
+    pub total_earned: u64,
+    pub bump: u8,
+}
+
+impl TechnicianProfile {
+    pub const INIT_SPACE: usize = 32 + 4 + 8 + 1;
+}
+
 #[program]
 pub mod medovant {
     use super::*;
+
+    /// Creates the technician reputation PDA the first time a tech opts in on-chain.
+    /// Hospital flows still require this account when completing maintenance so stats stay consistent.
+    pub fn register_technician(ctx: Context<RegisterTechnician>) -> Result<()> {
+        let profile = &mut ctx.accounts.technician_profile;
+        profile.technician = ctx.accounts.technician.key();
+        profile.jobs_completed = 0;
+        profile.total_earned = 0;
+        profile.bump = ctx.bumps.technician_profile;
+
+        emit!(TechnicianRegistered {
+            technician: ctx.accounts.technician.key(),
+            timestamp: Clock::get()?.unix_timestamp,
+        });
+
+        Ok(())
+    }
 
     // Registers a new equipment PDA for this hospital and asset_id.
     // Accounts: hospital (signer, payer), medical_asset (init PDA), system_program.
@@ -207,11 +248,16 @@ pub mod medovant {
         asset.status = AssetStatus::Active;
         asset.last_maintenance = now;
 
+        let profile = &mut ctx.accounts.technician_profile;
+        profile.jobs_completed = profile.jobs_completed.saturating_add(1);
+        profile.total_earned = profile.total_earned.saturating_add(reward_amount);
+
         emit!(MaintenanceCompleted {
             hospital: asset.hospital,
             asset_id: asset.asset_id,
             technician: ctx.accounts.technician.key(),
             timestamp: now,
+            jobs_completed: profile.jobs_completed,
         });
 
         Ok(())
@@ -226,6 +272,23 @@ pub mod medovant {
         asset.status = AssetStatus::Decommissioned;
         Ok(())
     }
+}
+
+#[derive(Accounts)]
+pub struct RegisterTechnician<'info> {
+    #[account(mut)]
+    pub technician: Signer<'info>,
+
+    #[account(
+        init,
+        payer = technician,
+        space = 8 + TechnicianProfile::INIT_SPACE,
+        seeds = [b"technician", technician.key().as_ref()],
+        bump
+    )]
+    pub technician_profile: Account<'info, TechnicianProfile>,
+
+    pub system_program: Program<'info, System>,
 }
 
 #[derive(Accounts)]
@@ -293,6 +356,15 @@ pub struct CompleteMaintenance<'info> {
     )]
     /// CHECK: System-owned vault PDA, escrow lamports only
     pub escrow_vault: UncheckedAccount<'info>,
+
+    #[account(
+        mut,
+        seeds = [b"technician", technician.key().as_ref()],
+        bump = technician_profile.bump,
+        constraint = technician_profile.technician == technician.key()
+            @ MedovantError::TechnicianProfileMismatch
+    )]
+    pub technician_profile: Account<'info, TechnicianProfile>,
 
     pub system_program: Program<'info, System>,
 }

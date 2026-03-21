@@ -1,5 +1,5 @@
 /**
- * Tests Medovant - flujo completo: init, report_issue, complete_maintenance, decommission
+ * Medovant integration tests: technician profile, asset lifecycle, escrow, decommission.
  */
 
 import * as anchor from "@coral-xyz/anchor";
@@ -23,6 +23,7 @@ describe("medovant", () => {
   let medicalAssetPda: PublicKey;
   let medicalAssetBump: number;
   let escrowVaultPda: PublicKey;
+  let technicianProfilePda: PublicKey;
 
   before(async () => {
     const sig = await provider.connection.requestAirdrop(
@@ -49,6 +50,32 @@ describe("medovant", () => {
     [escrowVaultPda] = PublicKey.findProgramAddressSync(
       [Buffer.from("vault"), medicalAssetPda.toBuffer()],
       program.programId
+    );
+
+    [technicianProfilePda] = PublicKey.findProgramAddressSync(
+      [Buffer.from("technician"), technician.publicKey.toBuffer()],
+      program.programId
+    );
+  });
+
+  it("register_technician: creates technician profile", async () => {
+    await program.methods
+      .registerTechnician()
+      .accounts({
+        technician: technician.publicKey,
+        technicianProfile: technicianProfilePda,
+        systemProgram: SystemProgram.programId,
+      })
+      .signers([technician])
+      .rpc();
+
+    const profile = await program.account.technicianProfile.fetch(
+      technicianProfilePda
+    );
+    expect(profile.jobsCompleted).to.equal(0);
+    expect(profile.totalEarned.toString()).to.equal("0");
+    expect(profile.technician.toString()).to.equal(
+      technician.publicKey.toString()
     );
   });
 
@@ -162,6 +189,7 @@ describe("medovant", () => {
         technician: technician.publicKey,
         medicalAsset: medicalAssetPda,
         escrowVault: escrowVaultPda,
+        technicianProfile: technicianProfilePda,
         systemProgram: SystemProgram.programId,
       })
       .signers([hospital, technician])
@@ -178,7 +206,13 @@ describe("medovant", () => {
     );
     expect(techBalanceAfter - techBalanceBefore).to.equal(REWARD_LAMPORTS);
 
-    // Nota: getTransaction puede devolver null en localnet
+    const profile = await program.account.technicianProfile.fetch(
+      technicianProfilePda
+    );
+    expect(profile.jobsCompleted).to.equal(1);
+    expect(profile.totalEarned.toString()).to.equal(
+      REWARD_LAMPORTS.toString()
+    );
   });
 
   it("complete_maintenance falla si status no es IssueReported (NoIssueReported)", async () => {
@@ -190,6 +224,7 @@ describe("medovant", () => {
           technician: technician.publicKey,
           medicalAsset: medicalAssetPda,
           escrowVault: escrowVaultPda,
+          technicianProfile: technicianProfilePda,
           systemProgram: SystemProgram.programId,
         })
         .signers([hospital, technician])
