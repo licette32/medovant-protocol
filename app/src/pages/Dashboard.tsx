@@ -2,24 +2,22 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useWallet } from '@solana/wallet-adapter-react'
 import { Toaster } from 'sonner'
+import { useRole } from '@/context/RoleContext'
 import { useProgram } from '@/hooks/useProgram'
 import type { ActivityItem } from '@/components/ActivityFeed'
+import HospitalDashboard from '@/components/HospitalDashboard'
 import Sidebar from '@/components/Sidebar'
+import TechnicianDashboard from '@/components/TechnicianDashboard'
 import Topbar from '@/components/Topbar'
-import HeroCard from '@/components/HeroCard'
-import StatsRow from '@/components/StatsRow'
-import EquipmentTable from '@/components/EquipmentTable'
-import ActionsPanel from '@/components/ActionsPanel'
-import ActivityFeed from '@/components/ActivityFeed'
-import BlockchainPanel from '@/components/BlockchainPanel'
 
 /**
- * Post-connect operational view — same layout as the previous single-page app root.
+ * Post-connect shell: sidebar + topbar; main content depends on hospital vs technician role (UI only).
  */
 export default function Dashboard() {
   const navigate = useNavigate()
   const { publicKey, connected } = useWallet()
   const { program } = useProgram()
+  const { isHospital } = useRole()
   const [lastTxSig, setLastTxSig] = useState<string>()
   const [activity, setActivity] = useState<ActivityItem[]>([])
 
@@ -35,20 +33,23 @@ export default function Dashboard() {
   return (
     <div className="flex min-h-screen bg-bg">
       <Sidebar />
-      <main className="min-h-screen flex-1 overflow-y-auto pl-[220px] p-8">
+      <div className="flex min-h-screen flex-1 flex-col overflow-y-auto pl-[220px]">
         <Topbar lastTxSig={lastTxSig} />
-        <HeroCard />
-        <StatsRow total={0} active={0} issues={0} maintenance={0} />
-        <div className="mt-5 grid grid-cols-1 gap-5 lg:grid-cols-[1fr_340px]">
-          <EquipmentTable program={program} publicKey={publicKey} />
-          <div className="flex flex-col gap-5">
-            <ActionsPanel program={program} publicKey={publicKey} onTxSuccess={onTxSuccess} />
-            <ActivityFeed items={activity} />
-          </div>
-        </div>
-        <BlockchainPanel lastTxSig={lastTxSig} />
-      </main>
-      <Toaster position="bottom-right" richColors />
+        <main className="flex-1 px-7 py-6">
+          {isHospital ? (
+            <HospitalDashboard
+              program={program}
+              publicKey={publicKey}
+              onTxSuccess={onTxSuccess}
+              activity={activity}
+              lastTxSig={lastTxSig}
+            />
+          ) : (
+            <TechnicianDashboard program={program} publicKey={publicKey} onTxSuccess={onTxSuccess} activity={activity} />
+          )}
+        </main>
+      </div>
+      <Toaster position="bottom-right" richColors theme="system" />
     </div>
   )
 }

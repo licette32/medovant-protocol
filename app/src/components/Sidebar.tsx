@@ -1,60 +1,167 @@
 import {
-  Activity,
-  HeartPulse,
+  ArrowLeftRight,
   History,
   LayoutDashboard,
   Stethoscope,
   Wrench,
 } from 'lucide-react'
+import { useRole } from '@/context/RoleContext'
+import { useLang } from '@/i18n/LangContext'
 
-/**
- * Primary navigation — fixed column so the dashboard feels like a product shell, not a single page.
- */
 export default function Sidebar() {
-  const nav = [
-    { icon: LayoutDashboard, label: 'Dashboard', active: true },
-    { icon: Stethoscope, label: 'Equipment', active: false },
-    { icon: Wrench, label: 'Technicians', active: false },
-    { icon: History, label: 'History', active: false },
-    { icon: Activity, label: 'Transactions', active: false },
+  const { role, setRole } = useRole()
+  const { t } = useLang()
+
+  const navItems = [
+    { label: t('dashboard'), icon: LayoutDashboard },
+    { label: t('equipment'), icon: Stethoscope },
+    { label: t('technicians'), icon: Wrench },
+    { label: t('history'), icon: History },
+    { label: t('transactions'), icon: ArrowLeftRight },
   ]
 
   return (
     <aside
-      className="fixed left-0 top-0 z-20 flex h-screen w-[220px] flex-col border-r border-stone-200 bg-surface shadow-sm"
+      style={{
+        width: '220px',
+        minHeight: '100vh',
+        position: 'fixed',
+        left: 0,
+        top: 0,
+        zIndex: 10,
+        background: 'var(--surface)',
+        borderRight: '1px solid var(--border)',
+        padding: '20px 12px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '4px',
+      }}
       aria-label="Main navigation"
     >
-      <div className="flex items-start gap-3 border-b border-stone-100 p-5">
-        <div
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-lavender to-[#9061f9] text-white shadow-md"
-          aria-hidden
-        >
-          <HeartPulse className="h-6 w-6" strokeWidth={2.5} />
-        </div>
-        <div>
-          <p className="text-sm font-bold tracking-wide text-navy">MEDOVANT</p>
-          <p className="text-xs text-stone-500">Escrow Protocol</p>
-        </div>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          width: '100%',
+          padding: '6px 6px 22px',
+          borderBottom: '1px solid var(--border)',
+          marginBottom: '8px',
+          boxSizing: 'border-box',
+        }}
+      >
+        <img
+          src="/logo-dashboard.png"
+          alt="Medovant"
+          style={{
+            display: 'block',
+            height: '90px',
+            width: 'auto',
+            maxWidth: '100%',
+            objectFit: 'contain',
+            objectPosition: 'center',
+          }}
+          onError={(e) => {
+            const el = e.target as HTMLImageElement
+            el.onerror = null
+            el.src = '/logo-W.png'
+          }}
+        />
       </div>
-      <nav className="flex flex-1 flex-col gap-0.5 p-3">
-        {nav.map(({ icon: Icon, label, active }) => (
-          <button
-            key={label}
-            type="button"
-            className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium transition-colors ${
-              active
-                ? 'bg-lavender-light text-violet-900'
-                : 'text-stone-600 hover:bg-surface2'
-            }`}
+
+      <div
+        style={{
+          display: 'flex',
+          borderRadius: '8px',
+          overflow: 'hidden',
+          border: '1px solid var(--border)',
+          marginBottom: '12px',
+        }}
+      >
+        <button
+          type="button"
+          onClick={() => setRole('hospital')}
+          style={{
+            flex: 1,
+            padding: '7px 4px',
+            border: 'none',
+            cursor: 'pointer',
+            fontSize: '11px',
+            fontWeight: 500,
+            fontFamily: 'Inter, sans-serif',
+            background: role === 'hospital' ? 'var(--green-d)' : 'transparent',
+            color: role === 'hospital' ? 'var(--green)' : 'var(--text2)',
+            borderRight: '1px solid var(--border)',
+          }}
+        >
+          🏥 {t('roleHospitalTab')}
+        </button>
+        <button
+          type="button"
+          onClick={() => setRole('technician')}
+          style={{
+            flex: 1,
+            padding: '7px 4px',
+            border: 'none',
+            cursor: 'pointer',
+            fontSize: '11px',
+            fontWeight: 500,
+            fontFamily: 'Inter, sans-serif',
+            background: role === 'technician' ? 'var(--cyan-d)' : 'transparent',
+            color: role === 'technician' ? 'var(--cyan)' : 'var(--text2)',
+          }}
+        >
+          🔧 {t('roleTechnicianTab')}
+        </button>
+      </div>
+
+      {navItems.map((item, i) => {
+        const Icon = item.icon
+        return (
+          <div
+            key={`${item.label}-${i}`}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '9px',
+              padding: i === 0 ? '8px 10px 8px 8px' : '8px 10px',
+              borderRadius: i === 0 ? '0 6px 6px 0' : '6px',
+              borderLeft: i === 0 ? '2px solid var(--green)' : 'none',
+              background: i === 0 ? 'var(--green-d)' : 'transparent',
+              color: i === 0 ? 'var(--green)' : 'var(--text2)',
+              fontSize: '12px',
+              fontWeight: i === 0 ? 500 : 400,
+              cursor: 'pointer',
+            }}
           >
-            <Icon className="h-4 w-4 shrink-0 opacity-80" />
-            {label}
-          </button>
-        ))}
-      </nav>
-      <div className="border-t border-stone-100 p-4">
-        <div className="flex items-center gap-2 rounded-lg bg-green-light/80 px-3 py-2 text-xs font-medium text-emerald-900">
-          <span className="h-2 w-2 shrink-0 rounded-full bg-green" aria-hidden />
+            <Icon size={14} />
+            {item.label}
+          </div>
+        )
+      })}
+
+      <div style={{ marginTop: 'auto' }}>
+        <div
+          style={{
+            background: 'var(--green-d)',
+            border: '1px solid var(--green-b)',
+            borderRadius: '6px',
+            padding: '7px 10px',
+            fontSize: '11px',
+            color: 'var(--green)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+          }}
+        >
+          <div
+            style={{
+              width: '6px',
+              height: '6px',
+              borderRadius: '50%',
+              background: 'var(--green)',
+            }}
+          />
           Solana Devnet
         </div>
       </div>

@@ -1,4 +1,5 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -6,29 +7,162 @@
 * {
   box-sizing: border-box;
 }
-body {
-  background-color: #f0ede8;
-  font-family: 'DM Sans', sans-serif;
-  color: #1a1a1a;
-  margin: 0;
+
+/* DARK MODE (default) */
+:root,
+[data-theme='dark'] {
+  --bg: #0f1413;
+  --surface: #151b1a;
+  --surface2: #1b2321;
+  --surface3: #202b28;
+  --border: #24302d;
+  --border-accent: rgba(63, 175, 143, 0.15);
+
+  --text: #e6f1ef;
+  --text2: #8fa7a3;
+  --text3: #4a6260;
+
+  --green: #3faf8f;
+  --green-d: rgba(63, 175, 143, 0.1);
+  --green-b: rgba(63, 175, 143, 0.2);
+
+  --cyan: #5bc0be;
+  --cyan-d: rgba(91, 192, 190, 0.1);
+  --cyan-b: rgba(91, 192, 190, 0.2);
+
+  --amber: #e6b980;
+  --amber-d: rgba(230, 185, 128, 0.1);
+  --amber-b: rgba(230, 185, 128, 0.2);
+
+  --red: #ff6b6b;
+  --red-d: rgba(255, 107, 107, 0.1);
+  --red-b: rgba(255, 107, 107, 0.2);
+
+  --purple: #7c83fd;
+  --purple-d: rgba(124, 131, 253, 0.1);
+  --purple-b: rgba(124, 131, 253, 0.2);
+
+  --logo: url('/logo-black.png');
+  --shadow: 0 1px 8px rgba(0, 0, 0, 0.4);
+  --radius: 10px;
+  --radius-sm: 6px;
 }
 
-/* Wallet adapter: match Medovant lavender theme */
+/* LIGHT MODE */
+[data-theme='light'] {
+  --bg: #f5f7f6;
+  --surface: #ffffff;
+  --surface2: #f0f4f2;
+  --surface3: #e8edeb;
+  --border: #e2e8e6;
+  --border-accent: rgba(31, 122, 108, 0.15);
+
+  --text: #1a2b2a;
+  --text2: #5f6f6d;
+  --text3: #9aaba8;
+
+  --green: #1f7a6c;
+  --green-d: rgba(31, 122, 108, 0.08);
+  --green-b: rgba(31, 122, 108, 0.2);
+
+  --cyan: #4fb3a5;
+  --cyan-d: rgba(79, 179, 165, 0.08);
+  --cyan-b: rgba(79, 179, 165, 0.2);
+
+  --amber: #b8782a;
+  --amber-d: rgba(184, 120, 42, 0.08);
+  --amber-b: rgba(184, 120, 42, 0.2);
+
+  --red: #c94040;
+  --red-d: rgba(201, 64, 64, 0.08);
+  --red-b: rgba(201, 64, 64, 0.2);
+
+  --purple: #5b63d4;
+  --purple-d: rgba(91, 99, 212, 0.08);
+  --purple-b: rgba(91, 99, 212, 0.2);
+
+  --logo: url('/logo-W.png');
+  --shadow: 0 1px 8px rgba(0, 0, 0, 0.06);
+  --radius: 10px;
+  --radius-sm: 6px;
+}
+
+body {
+  background-color: var(--bg);
+  color: var(--text);
+  font-family: 'Inter', system-ui, sans-serif;
+  margin: 0;
+  -webkit-font-smoothing: antialiased;
+  transition:
+    background-color 0.2s,
+    color 0.2s;
+}
+
+@keyframes medovant-pulse-dot {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.55;
+    transform: scale(0.92);
+  }
+}
+
+.medovant-pulse-dot {
+  animation: medovant-pulse-dot 2s ease-in-out infinite;
+}
+
+/* Wallet adapter — uses semantic tokens */
 .wallet-adapter-button {
-  background: #a78bfa !important;
+  background: var(--green-d) !important;
+  border: 1px solid var(--green-b) !important;
+  color: var(--green) !important;
   border-radius: 8px !important;
-  font-family: 'DM Sans', sans-serif !important;
-  font-size: 14px !important;
+  font-family: 'Inter', sans-serif !important;
+  font-size: 13px !important;
   font-weight: 500 !important;
-  height: 40px !important;
-  padding: 0 20px !important;
-  color: white !important;
-  transition: background 0.15s !important;
+  height: 36px !important;
+  padding: 0 16px !important;
+  transition: all 0.15s !important;
 }
 .wallet-adapter-button:hover {
-  background: #9061f9 !important;
+  background: var(--green-b) !important;
 }
 .wallet-adapter-modal-wrapper {
-  background: white !important;
-  border-radius: 14px !important;
+  background: var(--surface) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 12px !important;
+}
+.wallet-adapter-modal-title {
+  color: var(--text) !important;
+}
+.wallet-adapter-modal-list li button {
+  background: var(--surface2) !important;
+  color: var(--text) !important;
+}
+
+.home-wallet-btn .wallet-adapter-button {
+  background: var(--green) !important;
+  border: none !important;
+  color: #0f1413 !important;
+  height: 48px !important;
+  padding: 0 32px !important;
+  font-size: 15px !important;
+  font-weight: 600 !important;
+  border-radius: 10px !important;
+  letter-spacing: 0.02em !important;
+  box-shadow: 0 4px 20px rgba(63, 175, 143, 0.25) !important;
+  transition: all 0.2s !important;
+}
+.home-wallet-btn .wallet-adapter-button:hover {
+  background: #4cc49a !important;
+  box-shadow: 0 6px 24px rgba(63, 175, 143, 0.35) !important;
+  transform: translateY(-1px) !important;
+}
+[data-theme='light'] .home-wallet-btn .wallet-adapter-button {
+  background: var(--green) !important;
+  color: #ffffff !important;
+  box-shadow: 0 4px 20px rgba(31, 122, 108, 0.2) !important;
 }

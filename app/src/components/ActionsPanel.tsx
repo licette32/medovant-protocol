@@ -1,8 +1,9 @@
 import type { Program } from '@coral-xyz/anchor'
 import BN from 'bn.js'
 import { PublicKey, SystemProgram } from '@solana/web3.js'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { toast } from 'sonner'
+import { useLang } from '@/i18n/LangContext'
 import { getEscrowVaultPDA, getMedicalAssetPDA, getTechnicianProfilePDA } from '@/utils/pdas'
 import { loadOrCreateTechnicianKeypair } from '@/utils/technicianKeypair'
 import { showTxToast } from '@/components/Toast'
@@ -19,10 +20,22 @@ type Props = {
 type ModalKey = 'register' | 'report' | 'complete' | 'decommission' | null
 
 export default function ActionsPanel({ program, publicKey, onTxSuccess }: Props) {
+  const { t } = useLang()
   const [modal, setModal] = useState<ModalKey>(null)
   const [loading, setLoading] = useState(false)
   const [assetId, setAssetId] = useState('1')
   const [rewardSol, setRewardSol] = useState('0.0005')
+
+  const actionTiles = useMemo(
+    () =>
+      [
+        { modal: 'register' as const, title: t('registerAsset'), desc: t('registerDesc'), warnHover: false },
+        { modal: 'report' as const, title: t('reportIssue'), desc: t('reportDesc'), warnHover: false },
+        { modal: 'complete' as const, title: t('completeMaintenance'), desc: t('completeDesc'), warnHover: false },
+        { modal: 'decommission' as const, title: t('decommission'), desc: t('decommissionDesc'), warnHover: true },
+      ] as const,
+    [t]
+  )
 
   function guardWallet() {
     if (!program || !publicKey) {
@@ -176,88 +189,71 @@ export default function ActionsPanel({ program, publicKey, onTxSuccess }: Props)
 
   return (
     <>
-      <section className="rounded-xl border border-stone-100 bg-surface p-5 shadow-sm">
-        <h3 className="text-sm font-semibold text-navy">Actions</h3>
-        <p className="mt-1 text-xs text-stone-500">Hospital wallet must be connected for these instructions.</p>
+      <section className="rounded-[var(--radius)] border border-med bg-surface p-5 shadow-med">
+        <h3 className="text-sm font-semibold text-tpri">{t('actions')}</h3>
+        <p className="mt-1 text-xs text-tsec">{t('actionsDesc')}</p>
         <div className="mt-4 grid grid-cols-2 gap-3">
-          <button
-            type="button"
-            onClick={() => setModal('register')}
-            className="rounded-xl border border-stone-200 bg-surface2 py-3 text-sm font-medium text-navy transition hover:border-lavender hover:bg-lavender-light/40"
-          >
-            Register asset
-          </button>
-          <button
-            type="button"
-            onClick={() => setModal('report')}
-            className="rounded-xl border border-stone-200 bg-surface2 py-3 text-sm font-medium text-navy transition hover:border-lavender hover:bg-lavender-light/40"
-          >
-            Report issue
-          </button>
-          <button
-            type="button"
-            onClick={() => setModal('complete')}
-            className="rounded-xl border border-stone-200 bg-surface2 py-3 text-sm font-medium text-navy transition hover:border-lavender hover:bg-lavender-light/40"
-          >
-            Complete maintenance
-          </button>
-          <button
-            type="button"
-            onClick={() => setModal('decommission')}
-            className="rounded-xl border border-stone-200 bg-surface2 py-3 text-sm font-medium text-navy transition hover:border-red-200 hover:bg-red-50"
-          >
-            Decommission
-          </button>
+          {actionTiles.map(({ modal: m, title, desc, warnHover }) => (
+            <button
+              key={m}
+              type="button"
+              onClick={() => setModal(m)}
+              className={`rounded-sm border border-med bg-surface2 p-3 text-left transition hover:border-[color:var(--green-b)] hover:bg-[var(--green-d)] ${
+                warnHover ? 'hover:border-[color:var(--red-b)] hover:bg-[var(--red-d)]' : ''
+              }`}
+            >
+              <span className="block text-xs font-medium text-tpri">{title}</span>
+              <span className="mt-1 block text-[10px] leading-snug text-tmuted">{desc}</span>
+            </button>
+          ))}
         </div>
       </section>
 
       {modal && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
           role="dialog"
           aria-modal="true"
           onClick={() => !loading && setModal(null)}
         >
           <div
-            className="w-full max-w-md rounded-[14px] bg-white p-6 shadow-xl"
+            className="w-full max-w-md rounded-[var(--radius)] border border-med bg-surface p-6 shadow-med"
             onClick={(e) => e.stopPropagation()}
           >
-            <h4 className="text-lg font-semibold text-navy">
-              {modal === 'register' && 'Register asset'}
-              {modal === 'report' && 'Report issue'}
-              {modal === 'complete' && 'Complete maintenance'}
-              {modal === 'decommission' && 'Decommission asset'}
+            <h4 className="text-lg font-semibold text-tpri">
+              {modal === 'register' && t('registerAsset')}
+              {modal === 'report' && t('reportIssue')}
+              {modal === 'complete' && t('completeMaintenance')}
+              {modal === 'decommission' && t('decommissionModalTitle')}
             </h4>
             {modal === 'decommission' && (
-              <p className="mt-2 text-sm text-amber-800">
-                This closes the equipment account and returns rent. This cannot be undone from the UI.
-              </p>
+              <p className="mt-2 text-sm text-accenta">{t('warningDecommission')}</p>
             )}
             {modal === 'complete' && (
-              <p className="mt-2 text-xs text-stone-500">
-                A devnet technician keypair is stored in this browser (localStorage) to sign the technician role.
-                Fund it with a little SOL on devnet if registration fails.
-              </p>
+              <div className="mt-2 space-y-2 text-xs text-tsec">
+                <p className="font-medium text-tpri">{t('demoTechnician')}</p>
+                <p>{t('technicianKeypairBody')}</p>
+              </div>
             )}
-            <label className="mt-4 block text-xs font-medium text-stone-600">
-              Asset ID
+            <label className="mt-4 block text-xs font-medium text-tsec">
+              {t('assetId')}
               <input
                 type="number"
                 min={0}
                 value={assetId}
                 onChange={(e) => setAssetId(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-stone-200 bg-white px-3 py-2 font-mono text-sm outline-none focus:border-lavender focus:ring-2 focus:ring-lavender/30"
+                className="mt-1 w-full rounded-sm border border-med bg-surface2 px-3 py-2 font-mono text-sm text-tpri outline-none focus:border-[color:var(--green-b)] focus:ring-1 focus:ring-[color:var(--green)]/30"
               />
             </label>
             {modal === 'report' && (
-              <label className="mt-3 block text-xs font-medium text-stone-600">
-                Reward (SOL)
+              <label className="mt-3 block text-xs font-medium text-tsec">
+                {t('rewardSol')}
                 <input
                   type="text"
                   inputMode="decimal"
                   value={rewardSol}
                   onChange={(e) => setRewardSol(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-stone-200 bg-white px-3 py-2 font-mono text-sm outline-none focus:border-lavender focus:ring-2 focus:ring-lavender/30"
+                  className="mt-1 w-full rounded-sm border border-med bg-surface2 px-3 py-2 font-mono text-sm text-tpri outline-none focus:border-[color:var(--green-b)] focus:ring-1 focus:ring-[color:var(--green)]/30"
                 />
               </label>
             )}
@@ -266,9 +262,9 @@ export default function ActionsPanel({ program, publicKey, onTxSuccess }: Props)
                 type="button"
                 disabled={loading}
                 onClick={() => setModal(null)}
-                className="rounded-lg px-4 py-2 text-sm text-stone-600 hover:bg-stone-100"
+                className="rounded-sm border border-med bg-transparent px-4 py-2 text-sm text-tsec transition hover:bg-surface2"
               >
-                Cancel
+                {t('cancel')}
               </button>
               <button
                 type="button"
@@ -279,9 +275,9 @@ export default function ActionsPanel({ program, publicKey, onTxSuccess }: Props)
                   if (modal === 'complete') void submitComplete()
                   if (modal === 'decommission') void submitDecommission()
                 }}
-                className="rounded-lg bg-lavender px-4 py-2 text-sm font-medium text-white hover:bg-[#9061f9] disabled:opacity-50"
+                className="rounded-sm border border-[color:var(--green-b)] bg-[var(--green-d)] px-4 py-2 text-sm font-medium text-accentg transition hover:bg-[var(--green-b)] disabled:opacity-50"
               >
-                {loading ? 'Submitting…' : 'Submit'}
+                {loading ? t('submitting') : t('submit')}
               </button>
             </div>
           </div>

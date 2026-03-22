@@ -1,4 +1,5 @@
 import { ExternalLink } from 'lucide-react'
+import { useLang } from '@/i18n/LangContext'
 import { truncateSig } from '@/utils/formatters'
 
 const PROGRAM_ID = '5JMd8ADy1KHBhohX6NLbz6WQdyCQTfLd55Gmzo2r34WD'
@@ -6,51 +7,54 @@ const PROGRAM_ID = '5JMd8ADy1KHBhohX6NLbz6WQdyCQTfLd55Gmzo2r34WD'
 type Props = { lastTxSig?: string }
 
 export default function BlockchainPanel({ lastTxSig }: Props) {
+  const { t } = useLang()
   const explorerTx = lastTxSig
     ? `https://explorer.solana.com/tx/${lastTxSig}?cluster=devnet`
     : null
   const explorerProg = `https://explorer.solana.com/address/${PROGRAM_ID}?cluster=devnet`
 
   return (
-    <section className="mt-8 rounded-xl border border-stone-200 bg-surface2/80 p-5">
-      <h3 className="text-sm font-semibold text-navy">Blockchain</h3>
-      <dl className="mt-3 space-y-2 text-sm">
-        <div className="flex justify-between gap-4">
-          <dt className="text-stone-500">Program ID</dt>
-          <dd className="font-mono text-xs text-navy break-all">{PROGRAM_ID}</dd>
+    <section className="mt-8 rounded-[var(--radius)] border border-med bg-surface p-5 shadow-med">
+      <h3 className="text-sm font-semibold text-tpri">{t('onChainInfo')}</h3>
+      <dl className="mt-4 divide-y divide-med">
+        <div className="flex justify-between gap-4 py-3 first:pt-0">
+          <dt className="text-[11px] font-medium uppercase tracking-wide text-tsec">{t('programId')}</dt>
+          <dd className="max-w-[60%] text-right font-mono text-xs text-tpri break-all">{PROGRAM_ID}</dd>
         </div>
-        <div className="flex justify-between gap-4">
-          <dt className="text-stone-500">Network</dt>
-          <dd className="font-medium text-navy">Solana Devnet</dd>
+        <div className="flex justify-between gap-4 py-3">
+          <dt className="text-[11px] font-medium uppercase tracking-wide text-tsec">{t('network')}</dt>
+          <dd className="font-mono text-xs text-tpri">Solana Devnet</dd>
         </div>
-        <div className="flex justify-between gap-4">
-          <dt className="text-stone-500">Last Transaction</dt>
+        <div className="flex justify-between gap-4 py-3">
+          <dt className="text-[11px] font-medium uppercase tracking-wide text-tsec">{t('lastTransaction')}</dt>
           <dd>
             {lastTxSig ? (
               <a
                 href={explorerTx!}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex items-center gap-1 font-mono text-xs text-lavender hover:underline"
+                className="inline-flex items-center gap-1 font-mono text-xs text-accentg hover:underline"
               >
                 {truncateSig(lastTxSig)}
                 <ExternalLink className="h-3 w-3" />
               </a>
             ) : (
-              <span className="text-stone-400">—</span>
+              <span className="text-tmuted">—</span>
             )}
           </dd>
         </div>
       </dl>
-      <a
-        href={explorerProg}
-        target="_blank"
-        rel="noreferrer"
-        className="mt-4 inline-flex items-center gap-1 text-xs font-medium text-lavender hover:underline"
-      >
-        View program on Explorer
-        <ExternalLink className="h-3 w-3" />
-      </a>
+      <div className="mt-2 border-t border-med pt-4">
+        <a
+          href={explorerProg}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex items-center gap-1 text-xs font-medium text-accentg no-underline hover:underline"
+        >
+          {t('explorer')}
+          <ExternalLink className="h-3 w-3" />
+        </a>
+      </div>
     </section>
   )
 }
