@@ -1,31 +1,83 @@
 import type { Program } from '@coral-xyz/anchor'
-import { PublicKey } from '@solana/web3.js'
-import { useState } from 'react'
+import BN from 'bn.js'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import type { CSSProperties } from 'react'
+import { PublicKey, SystemProgram } from '@solana/web3.js'
 import { toast } from 'sonner'
+import type { ActivityItem } from '@/components/ActivityFeed'
 import { useLang } from '@/i18n/LangContext'
-import type { TranslationKey } from '@/i18n/translations'
-import { getMedicalAssetPDA } from '@/utils/pdas'
-import { lamportsToSol, mapAssetStatus } from '@/utils/formatters'
+import type { Lang, TranslationKey } from '@/i18n/translations'
+import { getAssetDisplayName, getAssetMeta, saveAssetMeta } from '@/utils/assetNames'
+import { mapAssetStatus, truncatePubkey } from '@/utils/formatters'
+import { getEscrowVaultPDA, getMedicalAssetPDA, getTechnicianProfilePDA } from '@/utils/pdas'
+import { loadOrCreateTechnicianKeypair } from '@/utils/technicianKeypair'
+import { showTxToast } from '@/components/Toast'
+import { toastAnchorTxError } from '@/utils/solanaTxError'
+
+export type OnTxSuccess = (sig: string, message: string, type: ActivityItem['type']) => void
+
+/** Normalized status from chain (mapAssetStatus strings). */
+export interface OnChainAsset {
+  id: number
+  pda: PublicKey
+  name: string
+  location?: string
+  status: string
+  maintenanceReward: number
+  failureCount: number
+  lastMaintenance: number
+}
 
 type Props = {
   program: Program | null
   publicKey: PublicKey | null
+  onTxSuccess: OnTxSuccess
+  /** When set, table uses this data instead of fetching IDs 1–5 internally. */
+  assets?: OnChainAsset[]
+  /** Called after successful txs and when user clicks Refresh (parent refetches for KPIs). */
+  onAssetsChange?: () => void | Promise<void>
+  /** Loading state when `assets` is controlled by parent. */
+  assetsLoading?: boolean
 }
 
-/** Canonical English labels from chain / mock — map to localized UI via t(). */
-const MOCK_ROWS = [
-  { id: 'EQ-1001', name: 'MRI Scanner A', status: 'Active' as const, hospital: 'Demo Hospital' },
-  { id: 'EQ-1002', name: 'Ventilator B', status: 'Issue Reported' as const, hospital: 'Demo Hospital' },
-  { id: 'EQ-1003', name: 'Ultrasound C', status: 'Under Maintenance' as const, hospital: 'North Wing' },
-]
+function activityAfterRegister(lang: Lang, name: string, id: number): string {
+  return lang === 'es' ? `${name} registrado on-chain (#${id})` : `${name} registered on-chain (#${id})`
+}
 
-function statusBadgeClass(status: string) {
+function activityAfterReport(lang: Lang, name: string, reward: string): string {
+  return lang === 'es'
+    ? `Problema reportado en ${name} — ${reward} SOL bloqueado`
+    : `Issue reported on ${name} — ${reward} SOL locked`
+}
+
+function activityAfterComplete(lang: Lang, name: string): string {
+  return lang === 'es' ? `Mantenimiento completado — ${name}` : `Maintenance completed — ${name}`
+}
+
+type ModalType = 'register' | 'report' | 'complete' | 'decommission'
+
+interface ModalState {
+  type: ModalType
+  assetId?: number
+  /** Lamports escrow for complete modal display */
+  maintenanceReward?: number
+}
+
+const DEMO_STATUSES = ['Active', 'Issue Reported', 'Under Maintenance'] as const
+
+function lamportsToNum(v: { toNumber?: () => number; toString?: () => string } | number): number {
+  if (typeof v === 'number') return v
+  if (typeof v.toNumber === 'function') return v.toNumber()
+  return Number(v.toString?.() ?? '0')
+}
+
+function statusBadgeClass(status: string): string {
   if (status === 'Active')
-    return 'border border-[color:var(--green-b)] bg-[var(--green-d)] text-accentg'
+    return 'border border-[color:var(--green-b)] bg-[var(--green-d)] text-[color:var(--green)]'
   if (status === 'Issue Reported')
-    return 'border border-[color:var(--amber-b)] bg-[var(--amber-d)] text-accenta'
+    return 'border border-[color:var(--amber-b)] bg-[var(--amber-d)] text-[color:var(--amber)]'
   if (status === 'Under Maintenance')
-    return 'border border-[color:var(--red-b)] bg-[var(--red-d)] text-accentr'
+    return 'border border-[color:var(--cyan-b)] bg-[var(--cyan-d)] text-[color:var(--cyan)]'
   if (status === 'Decommissioned')
     return 'border border-med bg-surface3 text-tmuted'
   return 'border border-med bg-surface2 text-tsec'
@@ -39,191 +91,725 @@ function translateStatus(status: string, t: (key: TranslationKey) => string): st
   return status
 }
 
-export default function EquipmentTable({ program, publicKey }: Props) {
-  const { t } = useLang()
-  const [assetIdInput, setAssetIdInput] = useState('1')
-  const [fetching, setFetching] = useState(false)
-  const [fetched, setFetched] = useState<{
-    status: string
-    failureCount: number
-    maintenanceReward: string
-    lastMaintenance: string
-  } | null>(null)
+const inputStyle: CSSProperties = {
+  background: 'var(--surface2)',
+  border: '1px solid var(--border)',
+  borderRadius: '6px',
+  padding: '8px 12px',
+  color: 'var(--text)',
+  fontFamily: '"DM Mono", monospace',
+  width: '100%',
+  outline: 'none',
+}
 
-  async function handleFetch() {
+const textFieldStyle: CSSProperties = {
+  ...inputStyle,
+  fontFamily: 'Inter, system-ui, sans-serif',
+}
+
+const textareaStyle: CSSProperties = {
+  ...textFieldStyle,
+  minHeight: '72px',
+  resize: 'vertical',
+}
+
+export default function EquipmentTable({
+  program,
+  publicKey,
+  onTxSuccess,
+  assets: assetsFromParent,
+  onAssetsChange,
+  assetsLoading: assetsLoadingFromParent,
+}: Props) {
+  const { t, lang } = useLang()
+  const isControlled = assetsFromParent !== undefined
+  const [assetsInternal, setAssetsInternal] = useState<OnChainAsset[]>([])
+  const [loadingInternal, setLoadingInternal] = useState(false)
+  const assets = isControlled ? assetsFromParent : assetsInternal
+  const loading = isControlled ? Boolean(assetsLoadingFromParent) : loadingInternal
+  const [activeModal, setActiveModal] = useState<ModalState | null>(null)
+  const [modalBusy, setModalBusy] = useState(false)
+
+  const [registerEquipmentName, setRegisterEquipmentName] = useState('')
+  const [registerLocation, setRegisterLocation] = useState('')
+  const [registerId, setRegisterId] = useState('1')
+  const [rewardSol, setRewardSol] = useState('0.05')
+  const [issueDescription, setIssueDescription] = useState('')
+
+  const techKp = useMemo(() => loadOrCreateTechnicianKeypair(), [])
+
+  const fetchAssets = useCallback(async () => {
+    if (!program || !publicKey) return
+    setLoadingInternal(true)
+    const found: OnChainAsset[] = []
+    for (let id = 1; id <= 5; id++) {
+      try {
+        const pda = getMedicalAssetPDA(publicKey, id)
+        const data = await (
+          program.account as {
+            medicalAsset: {
+              fetch: (a: PublicKey) => Promise<{
+                status: Record<string, unknown>
+                maintenanceReward: { toNumber?: () => number; toString?: () => string }
+                failureCount: number
+                lastMaintenance: { toNumber?: () => number; toString?: () => string }
+              }>
+            }
+          }
+        ).medicalAsset.fetch(pda)
+        const meta = getAssetMeta(publicKey.toBase58(), id)
+        found.push({
+          id,
+          pda,
+          name: meta?.name ?? `Asset #${id}`,
+          location: meta?.location,
+          status: mapAssetStatus(data.status as Record<string, unknown>),
+          maintenanceReward: lamportsToNum(data.maintenanceReward),
+          failureCount: data.failureCount,
+          lastMaintenance: lamportsToNum(data.lastMaintenance),
+        })
+      } catch {
+        /* account missing — skip */
+      }
+    }
+    setAssetsInternal(found)
+    setLoadingInternal(false)
+  }, [program, publicKey])
+
+  async function refreshAssets() {
+    if (onAssetsChange) {
+      await Promise.resolve(onAssetsChange())
+      return
+    }
+    await fetchAssets()
+  }
+
+  useEffect(() => {
+    if (isControlled) return
+    if (program && publicKey) void fetchAssets()
+  }, [program, publicKey, fetchAssets, isControlled])
+
+  function closeModal() {
+    if (!modalBusy) setActiveModal(null)
+  }
+
+  function dismissModalAfterSuccess() {
+    setActiveModal(null)
+  }
+
+  async function submitRegister() {
     if (!program || !publicKey) {
       toast.error('Connect wallet first')
       return
     }
-    const id = parseInt(assetIdInput, 10)
-    if (Number.isNaN(id) || id < 0) {
-      toast.error('Enter a valid asset ID')
+    const equipmentName = registerEquipmentName.trim()
+    if (!equipmentName) {
+      toast.error(t('equipmentNameRequired'))
       return
     }
-    setFetching(true)
-    setFetched(null)
+    const assetId = parseInt(registerId, 10)
+    if (Number.isNaN(assetId) || assetId < 1 || assetId > 9999) {
+      toast.error('Invalid asset ID (1–9999)')
+      return
+    }
+    setModalBusy(true)
     try {
-      const pda = getMedicalAssetPDA(publicKey, id)
-      const acc = await (program.account as { medicalAsset: { fetch: (a: PublicKey) => Promise<{
-        status: Record<string, unknown>
-        failureCount: number
-        maintenanceReward: { toString: () => string }
-        lastMaintenance: { toString: () => string }
-      }> } }).medicalAsset.fetch(pda)
-      setFetched({
-        status: mapAssetStatus(acc.status as Record<string, unknown>),
-        failureCount: acc.failureCount,
-        maintenanceReward: acc.maintenanceReward.toString(),
-        lastMaintenance: acc.lastMaintenance.toString(),
+      saveAssetMeta(publicKey.toBase58(), assetId, {
+        name: equipmentName,
+        location: registerLocation.trim() || undefined,
       })
+      const pda = getMedicalAssetPDA(publicKey, assetId)
+      const tx = await program.methods
+        .initializeAsset(new BN(assetId))
+        .accounts({
+          hospital: publicKey,
+          medicalAsset: pda,
+          systemProgram: SystemProgram.programId,
+        })
+        .rpc()
+      showTxToast(tx)
+      onTxSuccess(tx, activityAfterRegister(lang, equipmentName, assetId), 'tx')
+      setRegisterEquipmentName('')
+      setRegisterLocation('')
+      await refreshAssets()
+      dismissModalAfterSuccess()
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : String(e)
-      toast.error('Could not fetch asset', { description: msg })
+      await toastAnchorTxError(program, e)
     } finally {
-      setFetching(false)
+      setModalBusy(false)
     }
   }
 
-  return (
-    <div className="space-y-6">
-      <section className="overflow-hidden rounded-[var(--radius)] border border-med bg-surface shadow-med">
-        <div className="border-b border-med px-5 py-4">
-          <h3 className="text-sm font-semibold text-tpri">{t('equipmentRegistry')}</h3>
-          <p className="text-xs text-tsec">{t('onChainAccounts')}</p>
-          <p className="mt-1 text-xs text-tmuted">{t('sampleRows')}</p>
-        </div>
-        <div className="overflow-x-auto">
-          <table
-            className="w-full text-left text-[13px]"
-            style={{ tableLayout: 'fixed', width: '100%' }}
+  async function submitReport(assetId: number) {
+    if (!program || !publicKey) return
+    const lamports = new BN(Math.floor(parseFloat(rewardSol) * 1e9))
+    if (lamports.lten(0)) {
+      toast.error('Reward must be > 0')
+      return
+    }
+    setModalBusy(true)
+    try {
+      const pda = getMedicalAssetPDA(publicKey, assetId)
+      const vault = getEscrowVaultPDA(pda)
+      const tx = await program.methods
+        .reportIssue(lamports)
+        .accounts({
+          hospital: publicKey,
+          medicalAsset: pda,
+          escrowVault: vault,
+          systemProgram: SystemProgram.programId,
+        })
+        .rpc()
+      showTxToast(tx)
+      const displayName = getAssetDisplayName(publicKey.toBase58(), assetId)
+      onTxSuccess(tx, activityAfterReport(lang, displayName, rewardSol), 'warn')
+      if (issueDescription.trim()) {
+        // Local context only — not sent on-chain (program has no issue-text field)
+        console.info('[Medovant] Issue note:', issueDescription.trim())
+      }
+      setIssueDescription('')
+      await refreshAssets()
+      dismissModalAfterSuccess()
+    } catch (e: unknown) {
+      await toastAnchorTxError(program, e)
+    } finally {
+      setModalBusy(false)
+    }
+  }
+
+  async function submitComplete(assetId: number) {
+    if (!program || !publicKey) return
+    setModalBusy(true)
+    try {
+      const pda = getMedicalAssetPDA(publicKey, assetId)
+      const vault = getEscrowVaultPDA(pda)
+      const techProfile = getTechnicianProfilePDA(techKp.publicKey)
+      try {
+        await (program.account as { technicianProfile: { fetch: (a: PublicKey) => Promise<unknown> } }).technicianProfile.fetch(
+          techProfile
+        )
+      } catch {
+        const regSig = await program.methods
+          .registerTechnician()
+          .accounts({
+            technician: techKp.publicKey,
+            technicianProfile: techProfile,
+            systemProgram: SystemProgram.programId,
+          })
+          .signers([techKp])
+          .rpc()
+        showTxToast(regSig)
+        onTxSuccess(regSig, 'Technician profile registered', 'ok')
+      }
+      const sig = await program.methods
+        .completeMaintenance()
+        .accounts({
+          hospital: publicKey,
+          technician: techKp.publicKey,
+          medicalAsset: pda,
+          escrowVault: vault,
+          technicianProfile: techProfile,
+          systemProgram: SystemProgram.programId,
+        })
+        .signers([techKp])
+        .rpc()
+      showTxToast(sig)
+      const doneName = publicKey ? getAssetDisplayName(publicKey.toBase58(), assetId) : `Asset #${assetId}`
+      onTxSuccess(sig, activityAfterComplete(lang, doneName), 'fix')
+      await refreshAssets()
+      dismissModalAfterSuccess()
+    } catch (e: unknown) {
+      await toastAnchorTxError(program, e)
+    } finally {
+      setModalBusy(false)
+    }
+  }
+
+  async function submitDecommission(assetId: number) {
+    if (!program || !publicKey) return
+    setModalBusy(true)
+    try {
+      const pda = getMedicalAssetPDA(publicKey, assetId)
+      const tx = await program.methods
+        .decommissionAsset()
+        .accounts({
+          hospital: publicKey,
+          medicalAsset: pda,
+        })
+        .rpc()
+      showTxToast(tx)
+      const dName = publicKey ? getAssetDisplayName(publicKey.toBase58(), assetId) : `Asset #${assetId}`
+      onTxSuccess(
+        tx,
+        lang === 'es' ? `${dName} dado de baja (#${assetId})` : `${dName} decommissioned (#${assetId})`,
+        'warn'
+      )
+      await refreshAssets()
+      dismissModalAfterSuccess()
+    } catch (e: unknown) {
+      await toastAnchorTxError(program, e)
+    } finally {
+      setModalBusy(false)
+    }
+  }
+
+  const cardBase: CSSProperties = {
+    background: 'var(--surface)',
+    borderRadius: '10px',
+    padding: '20px',
+    maxWidth: '480px',
+  }
+
+  function renderActionCell(asset: OnChainAsset) {
+    const s = asset.status
+    if (s === 'Active') {
+      return (
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            className="rounded-md border border-[color:var(--amber-b)] bg-[var(--amber-d)] px-2 py-1 text-[11px] font-medium text-[color:var(--amber)] transition hover:opacity-90"
+            onClick={() => {
+              setIssueDescription('')
+              setActiveModal({ type: 'report', assetId: asset.id })
+            }}
           >
+            ⚠ {t('reportProblem')}
+          </button>
+          <button
+            type="button"
+            className="rounded-md border border-[color:var(--red-b)] bg-[var(--red-d)] px-2 py-1 text-[11px] font-medium text-[color:var(--red)] transition hover:opacity-90"
+            onClick={() => setActiveModal({ type: 'decommission', assetId: asset.id })}
+            aria-label={t('decommissionAsset')}
+          >
+            ✕
+          </button>
+        </div>
+      )
+    }
+    if (s === 'Issue Reported') {
+      return (
+        <button
+          type="button"
+          className="rounded-md border border-[color:var(--green-b)] bg-[var(--green-d)] px-2 py-1 text-[11px] font-medium text-[color:var(--green)] transition hover:opacity-90"
+          onClick={() =>
+            setActiveModal({
+              type: 'complete',
+              assetId: asset.id,
+              maintenanceReward: asset.maintenanceReward,
+            })
+          }
+        >
+          ✓ {t('completeMaint')}
+        </button>
+      )
+    }
+    if (s === 'Under Maintenance') {
+      return <span className="text-[11px] text-tmuted">{t('waitingTech')}</span>
+    }
+    if (s === 'Decommissioned') {
+      return <span className="text-[11px] text-tmuted">{t('statusDecommissioned')}</span>
+    }
+    return <span className="text-[11px] text-tmuted">—</span>
+  }
+
+  const showDemoRows = publicKey && !loading && assets.length === 0
+
+  const reportAssetId = activeModal?.type === 'report' ? activeModal.assetId : undefined
+  const reportAssetRow = reportAssetId != null ? assets.find((a) => a.id === reportAssetId) : undefined
+  const reportDisplayName =
+    reportAssetId != null && publicKey
+      ? (reportAssetRow?.name ?? getAssetDisplayName(publicKey.toBase58(), reportAssetId))
+      : ''
+  const reportDisplayLocation = reportAssetRow?.location
+
+  const completeAssetId = activeModal?.type === 'complete' ? activeModal.assetId : undefined
+  const completeDisplayName =
+    completeAssetId != null && publicKey
+      ? getAssetDisplayName(publicKey.toBase58(), completeAssetId)
+      : completeAssetId != null
+        ? `Asset #${completeAssetId}`
+        : ''
+
+  const decommissionAssetId = activeModal?.type === 'decommission' ? activeModal.assetId : undefined
+  const decommissionDisplayName =
+    decommissionAssetId != null && publicKey
+      ? getAssetDisplayName(publicKey.toBase58(), decommissionAssetId)
+      : decommissionAssetId != null
+        ? `Asset #${decommissionAssetId}`
+        : ''
+
+  return (
+    <div className="space-y-0">
+      <section className="overflow-hidden rounded-[var(--radius)] border border-med bg-surface shadow-med">
+        <div className="flex flex-wrap items-start justify-between gap-3 border-b border-med px-5 py-4">
+          <div>
+            <h3 className="text-sm font-semibold text-tpri">{t('equipment')}</h3>
+            <p className="mt-0.5 text-xs text-tsec">{t('equipmentTableSubtitle')}</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              disabled={!program || !publicKey || loading}
+              onClick={() => void refreshAssets()}
+              className="rounded-md border border-med bg-surface2 px-3 py-2 text-xs font-medium text-tsec transition hover:bg-surface3 disabled:opacity-50"
+            >
+              ↻ {t('refreshAssets')}
+            </button>
+            <button
+              type="button"
+              disabled={!program || !publicKey || modalBusy}
+              onClick={() => setActiveModal({ type: 'register' })}
+              className="rounded-md border border-[color:var(--green-b)] bg-[var(--green-d)] px-3 py-2 text-xs font-medium text-[color:var(--green)] transition hover:opacity-90 disabled:opacity-50"
+            >
+              + {t('registerNew')}
+            </button>
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-[13px]" style={{ tableLayout: 'fixed', width: '100%' }}>
             <colgroup>
-              <col style={{ width: '80px' }} />
+              <col style={{ width: '28%' }} />
+              <col style={{ width: '18%' }} />
+              <col style={{ width: '16%' }} />
+              <col style={{ width: '12%' }} />
               <col />
-              <col style={{ width: '140px' }} />
-              <col style={{ width: '130px' }} />
             </colgroup>
             <thead>
               <tr className="border-b border-med bg-surface2 text-[11px] uppercase tracking-[0.05em] text-tsec">
                 <th className="px-4 py-3">{t('colAsset')}</th>
-                <th className="px-4 py-3">{t('colName')}</th>
-                <th className="px-4 py-3">{t('colHospital')}</th>
                 <th className="px-4 py-3">{t('colStatus')}</th>
+                <th className="px-4 py-3">{t('colEscrow')}</th>
+                <th className="px-4 py-3">{t('colFailures')}</th>
+                <th className="px-4 py-3">{t('colAction')}</th>
               </tr>
             </thead>
             <tbody>
-              {MOCK_ROWS.map((row) => (
-                <tr
-                  key={row.id}
-                  className="border-b border-med text-tpri transition-colors last:border-0 hover:bg-surface2"
-                >
-                  <td
-                    className="px-4 py-3 font-mono align-top"
-                    style={{
-                      width: '80px',
-                      verticalAlign: 'top',
-                      fontSize: '10px',
-                      color: 'var(--text3)',
-                      whiteSpace: 'nowrap',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                    }}
-                  >
-                    {row.id}
+              {!publicKey && (
+                <tr>
+                  <td colSpan={5} className="px-4 py-8 text-center text-sm text-tsec">
+                    {t('connectWallet')}
                   </td>
-                  <td className="px-4 py-3 align-top" style={{ verticalAlign: 'top' }}>
-                    <div
-                      style={{
-                        fontWeight: 500,
-                        fontSize: '13px',
-                        color: 'var(--text)',
-                        whiteSpace: 'nowrap',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                      }}
-                    >
-                      {row.name}
-                    </div>
+                </tr>
+              )}
+              {publicKey && loading && (
+                <tr>
+                  <td colSpan={5} className="px-4 py-8 text-center text-sm text-tsec">
+                    {t('fetching')}
+                  </td>
+                </tr>
+              )}
+              {publicKey && !loading && assets.map((asset) => (
+                <tr key={asset.id} className="border-b border-med text-tpri transition-colors last:border-0 hover:bg-surface2">
+                  <td className="px-4 py-3 align-top">
+                    <div style={{ fontWeight: 600, fontSize: '13px', color: 'var(--text)' }}>{asset.name}</div>
+                    {asset.location && (
+                      <div style={{ fontSize: '10px', color: 'var(--text3)', marginTop: '2px' }}>📍 {asset.location}</div>
+                    )}
                     <div
                       style={{
                         fontFamily: 'DM Mono, monospace',
                         fontSize: '10px',
                         color: 'var(--text3)',
-                        marginTop: '2px',
-                        whiteSpace: 'nowrap',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
+                        marginTop: '4px',
                       }}
                     >
-                      {row.id}
+                      #{asset.id} · {asset.pda.toBase58().slice(0, 8)}...
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-tsec align-top" style={{ verticalAlign: 'top' }}>
-                    {row.hospital}
-                  </td>
-                  <td className="px-4 py-3 align-top" style={{ verticalAlign: 'top' }}>
-                    <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${statusBadgeClass(row.status)}`}>
-                      {translateStatus(row.status, t)}
+                  <td className="px-4 py-3 align-top">
+                    <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${statusBadgeClass(asset.status)}`}>
+                      {translateStatus(asset.status, t)}
                     </span>
                   </td>
+                  <td className="px-4 py-3 align-top font-mono text-xs">
+                    {asset.maintenanceReward > 0 ? (
+                      <span className="text-[color:var(--amber)]">{(asset.maintenanceReward / 1e9).toFixed(4)} SOL</span>
+                    ) : (
+                      <span className="text-tmuted">—</span>
+                    )}
+                  </td>
+                  <td className={`px-4 py-3 align-top text-sm ${asset.failureCount > 0 ? 'text-[color:var(--amber)]' : 'text-tsec'}`}>
+                    {asset.failureCount}
+                  </td>
+                  <td className="px-4 py-3 align-top">{renderActionCell(asset)}</td>
                 </tr>
               ))}
+              {showDemoRows && (
+                <>
+                  {DEMO_STATUSES.map((st, i) => (
+                    <tr key={`demo-${i}`} className="border-b border-med opacity-75 last:border-0">
+                      <td className="px-4 py-3">
+                        <div className="font-semibold text-tpri">
+                          Asset #{i + 1} <span className="text-[10px] font-normal text-tmuted">(demo)</span>
+                        </div>
+                        <div className="mt-1 font-mono text-[10px] text-tmuted">—</div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${statusBadgeClass(st)}`}>
+                          {translateStatus(st, t)}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-tmuted">—</td>
+                      <td className="px-4 py-3 text-tmuted">—</td>
+                      <td className="px-4 py-3 text-[11px] text-tmuted">{t('sampleRow')}</td>
+                    </tr>
+                  ))}
+                  <tr>
+                    <td colSpan={5} className="px-4 py-3 text-center text-[11px] text-tmuted">
+                      {t('noAssetsFound')}
+                    </td>
+                  </tr>
+                </>
+              )}
             </tbody>
           </table>
         </div>
 
-        <div className="border-t border-med bg-surface2 px-5 py-4">
-          <h3 className="text-sm font-semibold text-tpri">{t('fetchAsset')}</h3>
-          <p className="mt-1 text-xs text-tsec">{t('fetchDesc')}</p>
-          <div className="mt-4 flex flex-wrap items-end gap-3">
-            <label className="flex flex-col gap-1">
-              <span className="text-xs font-medium text-tsec">{t('assetId')}</span>
-              <input
-                type="number"
-                min={0}
-                value={assetIdInput}
-                onChange={(e) => setAssetIdInput(e.target.value)}
-                className="w-40 rounded-sm border border-med bg-surface px-3 py-2 font-mono text-sm text-tpri outline-none focus:border-[color:var(--green-b)] focus:ring-1 focus:ring-[color:var(--green)]/30"
-              />
-            </label>
-            <button
-              type="button"
-              onClick={handleFetch}
-              disabled={fetching}
-              className="rounded-sm border border-[color:var(--green-b)] bg-[var(--green-d)] px-4 py-2 text-sm font-medium text-accentg transition hover:bg-[var(--green-b)] disabled:opacity-50"
-            >
-              {fetching ? t('fetching') : t('fetchButton')}
-            </button>
+        {activeModal && (
+          <div
+            className="border-t border-med"
+            style={{
+              padding: '20px',
+              background: 'var(--surface2)',
+            }}
+          >
+            {activeModal.type === 'register' && (
+              <div
+                style={{
+                  ...cardBase,
+                  border: '1px solid var(--border-accent)',
+                }}
+              >
+                <h4 className="text-base font-semibold text-tpri">+ {t('registerModalTitle')}</h4>
+                <p className="mt-1 text-xs text-tsec">{t('registerModalSubtitle')}</p>
+                <label className="mt-4 block text-xs font-medium text-tsec">
+                  {t('equipmentName')} <span className="text-[color:var(--red)]">*</span>
+                  <input
+                    type="text"
+                    required
+                    value={registerEquipmentName}
+                    onChange={(e) => setRegisterEquipmentName(e.target.value)}
+                    placeholder={t('equipmentNamePlaceholder')}
+                    style={{ ...textFieldStyle, marginTop: '6px' }}
+                    onFocus={(e) => {
+                      e.target.style.borderColor = 'var(--green)'
+                    }}
+                    onBlur={(e) => {
+                      e.target.style.borderColor = 'var(--border)'
+                    }}
+                  />
+                </label>
+                <label className="mt-3 block text-xs font-medium text-tsec">
+                  {t('locationLabel')}
+                  <input
+                    type="text"
+                    value={registerLocation}
+                    onChange={(e) => setRegisterLocation(e.target.value)}
+                    placeholder={t('locationPlaceholder')}
+                    style={{ ...textFieldStyle, marginTop: '6px' }}
+                    onFocus={(e) => {
+                      e.target.style.borderColor = 'var(--green)'
+                    }}
+                    onBlur={(e) => {
+                      e.target.style.borderColor = 'var(--border)'
+                    }}
+                  />
+                </label>
+                <label className="mt-3 block text-xs font-medium text-tsec">
+                  {t('assetId')}
+                  <input
+                    type="number"
+                    min={1}
+                    max={9999}
+                    value={registerId}
+                    onChange={(e) => setRegisterId(e.target.value)}
+                    style={{ ...inputStyle, marginTop: '6px' }}
+                    onFocus={(e) => {
+                      e.target.style.borderColor = 'var(--green)'
+                    }}
+                    onBlur={(e) => {
+                      e.target.style.borderColor = 'var(--border)'
+                    }}
+                  />
+                </label>
+                <p className="mt-1 text-[10px] text-tmuted">{t('assetIdUnique')}</p>
+                <div className="mt-6 flex justify-end gap-2">
+                  <button
+                    type="button"
+                    disabled={modalBusy}
+                    onClick={closeModal}
+                    className="rounded-md border border-med bg-transparent px-4 py-2 text-sm text-tsec"
+                  >
+                    {t('cancel')}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={modalBusy}
+                    onClick={() => void submitRegister()}
+                    className="rounded-md border border-[color:var(--green-b)] bg-[var(--green-d)] px-4 py-2 text-sm font-medium text-[color:var(--green)] disabled:opacity-50"
+                  >
+                    {modalBusy ? t('submitting') : t('registerOnChain')}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {activeModal.type === 'report' && activeModal.assetId != null && (
+              <div
+                style={{
+                  ...cardBase,
+                  border: '1px solid var(--border-accent)',
+                }}
+              >
+                <h4 className="text-base font-semibold text-tpri">
+                  ⚠ {t('reportModalTitle')} — {reportDisplayName}
+                </h4>
+                <p className="mt-1 text-xs text-tsec">{t('reportModalSubtitle')}</p>
+                <div
+                  style={{
+                    background: 'var(--surface2)',
+                    borderRadius: '6px',
+                    padding: '10px 12px',
+                    marginTop: '12px',
+                    marginBottom: '16px',
+                  }}
+                >
+                  <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text)' }}>{reportDisplayName}</div>
+                  {reportDisplayLocation && (
+                    <div style={{ fontSize: '10px', color: 'var(--text3)', marginTop: '4px' }}>
+                      📍 {reportDisplayLocation}
+                    </div>
+                  )}
+                  <div style={{ fontFamily: 'DM Mono, monospace', fontSize: '10px', color: 'var(--text3)', marginTop: '4px' }}>
+                    #{activeModal.assetId}
+                  </div>
+                </div>
+                <label className="mt-0 block text-xs font-medium text-tsec">
+                  {t('rewardSol')}
+                  <input
+                    type="number"
+                    step={0.001}
+                    min={0}
+                    placeholder="0.05"
+                    value={rewardSol}
+                    onChange={(e) => setRewardSol(e.target.value)}
+                    style={{ ...inputStyle, marginTop: '6px' }}
+                  />
+                </label>
+                <p className="mt-1 text-[10px] text-tmuted">{t('rewardNote')}</p>
+                <label className="mt-4 block text-xs font-medium text-tsec">
+                  {t('issueDescriptionLabel')}
+                  <textarea
+                    value={issueDescription}
+                    onChange={(e) => setIssueDescription(e.target.value)}
+                    placeholder={t('issueDescriptionPlaceholder')}
+                    rows={3}
+                    style={{ ...textareaStyle, marginTop: '6px' }}
+                    onFocus={(e) => {
+                      e.target.style.borderColor = 'var(--green)'
+                    }}
+                    onBlur={(e) => {
+                      e.target.style.borderColor = 'var(--border)'
+                    }}
+                  />
+                </label>
+                <div className="mt-4 rounded-md border border-[color:var(--amber-b)] bg-[var(--amber-d)] px-3 py-2 text-[11px] text-[color:var(--amber)]">
+                  ⚠ {t('escrowWarning')}
+                </div>
+                <div className="mt-6 flex justify-end gap-2">
+                  <button type="button" disabled={modalBusy} onClick={closeModal} className="rounded-md border border-med px-4 py-2 text-sm text-tsec">
+                    {t('cancel')}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={modalBusy}
+                    onClick={() => void submitReport(activeModal.assetId!)}
+                    className="rounded-md border border-[color:var(--amber-b)] bg-[var(--amber-d)] px-4 py-2 text-sm font-medium text-[color:var(--amber)] disabled:opacity-50"
+                  >
+                    {modalBusy ? t('submitting') : t('lockAndReport')}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {activeModal.type === 'complete' && activeModal.assetId != null && (
+              <div
+                style={{
+                  ...cardBase,
+                  border: '1px solid var(--green-b)',
+                }}
+              >
+                <h4 className="text-base font-semibold text-tpri">
+                  ✓ {t('completeModalTitle')} — {completeDisplayName}
+                </h4>
+                <p className="mt-1 text-xs text-tsec">{t('completeModalSubtitle')}</p>
+                <ul className="mt-4 space-y-2 text-xs text-tsec">
+                  <li>
+                    <span className="text-tmuted">Asset:</span> {completeDisplayName}{' '}
+                    <span className="text-tmuted">(#{activeModal.assetId})</span>
+                  </li>
+                  <li>
+                    <span className="text-tmuted">{t('escrowLocked')}:</span>{' '}
+                    <span className="text-[color:var(--amber)]">
+                      {((activeModal.maintenanceReward ?? 0) / 1e9).toFixed(4)} SOL
+                    </span>
+                  </li>
+                  <li>
+                    <span className="text-tmuted">{t('releasedToTech')}:</span>{' '}
+                    <span className="font-mono text-tpri">{truncatePubkey(techKp.publicKey.toBase58())}</span>
+                  </li>
+                  <li className="text-[color:var(--green)]">{t('bothSign')}</li>
+                </ul>
+                <div className="mt-3 rounded-md border border-[color:var(--amber-b)] bg-[var(--amber-d)] px-3 py-2 text-[11px] text-[color:var(--amber)]">
+                  {t('techNeedsSol')}
+                </div>
+                <div className="mt-6 flex justify-end gap-2">
+                  <button type="button" disabled={modalBusy} onClick={closeModal} className="rounded-md border border-med px-4 py-2 text-sm text-tsec">
+                    {t('cancel')}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={modalBusy}
+                    onClick={() => void submitComplete(activeModal.assetId!)}
+                    className="rounded-md border border-[color:var(--green-b)] bg-[var(--green-d)] px-4 py-2 text-sm font-medium text-[color:var(--green)] disabled:opacity-50"
+                  >
+                    {modalBusy ? t('submitting') : t('confirmRelease')}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {activeModal.type === 'decommission' && activeModal.assetId != null && (
+              <div
+                style={{
+                  ...cardBase,
+                  border: '1px solid var(--red-b)',
+                }}
+              >
+                <h4 className="text-base font-semibold text-tpri">
+                  {t('decommissionTitle')} — {decommissionDisplayName}
+                </h4>
+                <div className="mt-4 rounded-md border border-[color:var(--red-b)] bg-[var(--red-d)] px-3 py-2 text-[11px] text-[color:var(--red)]">
+                  ⚠ {t('decommissionWarning')}
+                </div>
+                <div className="mt-6 flex justify-end gap-2">
+                  <button type="button" disabled={modalBusy} onClick={closeModal} className="rounded-md border border-med bg-surface2 px-4 py-2 text-sm text-tsec">
+                    {t('cancel')}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={modalBusy}
+                    onClick={() => void submitDecommission(activeModal.assetId!)}
+                    className="rounded-md border border-[color:var(--red-b)] bg-[var(--red-d)] px-4 py-2 text-sm font-medium text-[color:var(--red)] disabled:opacity-50"
+                  >
+                    {modalBusy ? t('submitting') : t('decommissionAsset')}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
-          {fetched && (
-            <div className="mt-4 rounded-sm border border-med bg-surface p-4 text-sm">
-              <p className="font-medium text-tpri">{t('onChainData')}</p>
-              <ul className="mt-2 space-y-1 text-tsec">
-                <li>
-                  {t('statusLabel')}:{' '}
-                  <span className={`inline-block rounded px-2 py-0.5 text-xs font-medium ${statusBadgeClass(fetched.status)}`}>
-                    {translateStatus(fetched.status, t)}
-                  </span>
-                </li>
-                <li>
-                  {t('failuresReported')}: {Number(fetched.failureCount)}
-                </li>
-                <li>
-                  {t('escrowLamports')}:{' '}
-                  <span className="font-mono text-accentg">{fetched.maintenanceReward}</span>
-                </li>
-                <li>
-                  {t('lastMaintenanceUnix')}:{' '}
-                  <span className="font-mono text-tsec">{fetched.lastMaintenance}</span>
-                </li>
-                <li className="text-xs text-tmuted">
-                  {t('escrowApprox')}{' '}
-                  <span className="font-mono text-accentg">{lamportsToSol(Number(fetched.maintenanceReward))}</span> SOL
-                </li>
-              </ul>
-            </div>
-          )}
-        </div>
+        )}
       </section>
     </div>
   )

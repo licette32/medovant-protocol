@@ -5,6 +5,7 @@ import { Toaster } from 'sonner'
 import { useRole } from '@/context/RoleContext'
 import { useProgram } from '@/hooks/useProgram'
 import type { ActivityItem } from '@/components/ActivityFeed'
+import { normalizeTxSignature } from '@/utils/formatters'
 import HospitalDashboard from '@/components/HospitalDashboard'
 import Sidebar from '@/components/Sidebar'
 import TechnicianDashboard from '@/components/TechnicianDashboard'
@@ -26,7 +27,7 @@ export default function Dashboard() {
   }, [connected, navigate])
 
   function onTxSuccess(sig: string, message: string, type: ActivityItem['type']) {
-    setLastTxSig(sig)
+    setLastTxSig(normalizeTxSignature(sig))
     setActivity((prev) => [{ message, time: new Date().toLocaleTimeString(), type }, ...prev].slice(0, 8))
   }
 

@@ -7,9 +7,10 @@ import { useLang } from '@/i18n/LangContext'
 import { getEscrowVaultPDA, getMedicalAssetPDA, getTechnicianProfilePDA } from '@/utils/pdas'
 import { loadOrCreateTechnicianKeypair } from '@/utils/technicianKeypair'
 import { showTxToast } from '@/components/Toast'
-import type { ActivityItem } from '@/components/ActivityFeed'
+import { toastAnchorTxError } from '@/utils/solanaTxError'
+import type { OnTxSuccess } from '@/components/EquipmentTable'
 
-export type OnTxSuccess = (sig: string, message: string, type: ActivityItem['type']) => void
+export type { OnTxSuccess }
 
 type Props = {
   program: Program | null
@@ -67,7 +68,7 @@ export default function ActionsPanel({ program, publicKey, onTxSuccess }: Props)
       onTxSuccess(sig, `Registered asset #${id}`, 'tx')
       setModal(null)
     } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : String(e))
+      await toastAnchorTxError(program, e)
     } finally {
       setLoading(false)
     }
@@ -102,7 +103,7 @@ export default function ActionsPanel({ program, publicKey, onTxSuccess }: Props)
       onTxSuccess(sig, `Reported issue on asset #${id}`, 'warn')
       setModal(null)
     } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : String(e))
+      await toastAnchorTxError(program, e)
     } finally {
       setLoading(false)
     }
@@ -181,7 +182,7 @@ export default function ActionsPanel({ program, publicKey, onTxSuccess }: Props)
       onTxSuccess(sig, `Decommissioned asset #${id}`, 'warn')
       setModal(null)
     } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : String(e))
+      await toastAnchorTxError(program, e)
     } finally {
       setLoading(false)
     }

@@ -1,6 +1,6 @@
 import { ExternalLink } from 'lucide-react'
 import { useLang } from '@/i18n/LangContext'
-import { truncateSig } from '@/utils/formatters'
+import { normalizeTxSignature, truncateSig } from '@/utils/formatters'
 
 const PROGRAM_ID = '5JMd8ADy1KHBhohX6NLbz6WQdyCQTfLd55Gmzo2r34WD'
 
@@ -8,8 +8,9 @@ type Props = { lastTxSig?: string }
 
 export default function BlockchainPanel({ lastTxSig }: Props) {
   const { t } = useLang()
-  const explorerTx = lastTxSig
-    ? `https://explorer.solana.com/tx/${lastTxSig}?cluster=devnet`
+  const safeSig = normalizeTxSignature(lastTxSig)
+  const explorerTx = safeSig
+    ? `https://explorer.solana.com/tx/${encodeURIComponent(safeSig)}?cluster=devnet`
     : null
   const explorerProg = `https://explorer.solana.com/address/${PROGRAM_ID}?cluster=devnet`
 
@@ -28,14 +29,14 @@ export default function BlockchainPanel({ lastTxSig }: Props) {
         <div className="flex justify-between gap-4 py-3">
           <dt className="text-[11px] font-medium uppercase tracking-wide text-tsec">{t('lastTransaction')}</dt>
           <dd>
-            {lastTxSig ? (
+            {safeSig ? (
               <a
                 href={explorerTx!}
                 target="_blank"
-                rel="noreferrer"
+                rel="noopener noreferrer"
                 className="inline-flex items-center gap-1 font-mono text-xs text-accentg hover:underline"
               >
-                {truncateSig(lastTxSig)}
+                {truncateSig(safeSig)}
                 <ExternalLink className="h-3 w-3" />
               </a>
             ) : (

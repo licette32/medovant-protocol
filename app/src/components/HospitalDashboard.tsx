@@ -1,13 +1,16 @@
 import type { Program } from '@coral-xyz/anchor'
 import { PublicKey } from '@solana/web3.js'
 import { ChevronRight } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useLang } from '@/i18n/LangContext'
-import ActionsPanel from '@/components/ActionsPanel'
-import type { OnTxSuccess } from '@/components/ActionsPanel'
+import type { OnChainAsset, OnTxSuccess } from '@/components/EquipmentTable'
 import ActivityFeed from '@/components/ActivityFeed'
 import type { ActivityItem } from '@/components/ActivityFeed'
 import BlockchainPanel from '@/components/BlockchainPanel'
 import EquipmentTable from '@/components/EquipmentTable'
+import { getAssetMeta } from '@/utils/assetNames'
+import { mapAssetStatus } from '@/utils/formatters'
+import { getMedicalAssetPDA } from '@/utils/pdas'
 
 type Props = {
   program: Program | null
@@ -15,6 +18,12 @@ type Props = {
   onTxSuccess: OnTxSuccess
   activity: ActivityItem[]
   lastTxSig?: string
+}
+
+function lamportsToNum(v: { toNumber?: () => number; toString?: () => string } | number): number {
+  if (typeof v === 'number') return v
+  if (typeof v.toNumber === 'function') return v.toNumber()
+  return Number(v.toString?.() ?? '0')
 }
 
 /** Hospital-facing layout: protocol narrative, KPIs, equipment + actions + chain info. */
@@ -25,7 +34,65 @@ export default function HospitalDashboard({
   activity,
   lastTxSig,
 }: Props) {
-  const { t } = useLang()
+  const { t, lang } = useLang()
+  const [assets, setAssets] = useState<OnChainAsset[]>([])
+  const [assetsLoading, setAssetsLoading] = useState(false)
+
+  const fetchAssets = useCallback(async () => {
+    if (!program || !publicKey) return
+    setAssetsLoading(true)
+    const found: OnChainAsset[] = []
+    for (let id = 1; id <= 10; id++) {
+      try {
+        const pda = getMedicalAssetPDA(publicKey, id)
+        const data = await (
+          program.account as {
+            medicalAsset: {
+              fetch: (a: PublicKey) => Promise<{
+                status: Record<string, unknown>
+                maintenanceReward: { toNumber?: () => number; toString?: () => string }
+                failureCount: number
+                lastMaintenance: { toNumber?: () => number; toString?: () => string }
+              }>
+            }
+          }
+        ).medicalAsset.fetch(pda)
+        const meta = getAssetMeta(publicKey.toBase58(), id)
+        found.push({
+          id,
+          pda,
+          name: meta?.name ?? `Asset #${id}`,
+          location: meta?.location,
+          status: mapAssetStatus(data.status as Record<string, unknown>),
+          maintenanceReward: lamportsToNum(data.maintenanceReward),
+          failureCount: data.failureCount,
+          lastMaintenance: lamportsToNum(data.lastMaintenance),
+        })
+      } catch {
+        /* account missing — skip */
+      }
+    }
+    setAssets(found)
+    setAssetsLoading(false)
+  }, [program, publicKey])
+
+  useEffect(() => {
+    if (program && publicKey) void fetchAssets()
+  }, [program, publicKey, fetchAssets])
+
+  const kpiActive = useMemo(() => assets.filter((a) => a.status === 'Active').length, [assets])
+  const kpiIssues = useMemo(() => assets.filter((a) => a.status === 'Issue Reported').length, [assets])
+  const kpiMaintenance = useMemo(() => assets.filter((a) => a.status === 'Under Maintenance').length, [assets])
+  const kpiDecommissioned = useMemo(() => assets.filter((a) => a.status === 'Decommissioned').length, [assets])
+  const kpiEscrowSOL = useMemo(
+    () => assets.reduce((sum, a) => sum + a.maintenanceReward, 0) / 1e9,
+    [assets]
+  )
+
+  const issuesSub =
+    kpiEscrowSOL > 0
+      ? `${kpiEscrowSOL.toFixed(4)} SOL ${lang === 'es' ? 'bloqueado' : 'locked'}`
+      : t('kpiIssuesSub')
 
   const node = (
     iconBg: string,
@@ -163,28 +230,23 @@ export default function HospitalDashboard({
           marginBottom: '16px',
         }}
       >
-        {kpi('var(--green)', 'var(--green)', t('kpiActiveAssets'), t('kpiActiveSub'), 0)}
-        {kpi('var(--amber)', 'var(--amber)', t('kpiIssuesReported'), t('kpiIssuesSub'), 0)}
-        {kpi('var(--cyan)', 'var(--cyan)', t('kpiInMaintenanceLabel'), t('kpiInMaintenanceSub'), 0)}
-        {kpi('var(--red)', 'var(--red)', t('kpiDecommissionedLabel'), t('kpiDecommissionedSub'), 0)}
+        {kpi('var(--text2)', 'var(--text)', t('totalEquipment'), t('kpiActiveSub'), assets.length)}
+        {kpi('var(--green)', 'var(--green)', t('kpiActiveAssets'), t('kpiActiveSub'), kpiActive)}
+        {kpi('var(--amber)', 'var(--amber)', t('kpiIssuesReported'), issuesSub, kpiIssues)}
+        {kpi('var(--cyan)', 'var(--cyan)', t('kpiInMaintenanceLabel'), t('kpiInMaintenanceSub'), kpiMaintenance)}
+        {kpi('var(--red)', 'var(--red)', t('kpiDecommissionedLabel'), t('kpiDecommissionedSub'), kpiDecommissioned)}
       </div>
 
-      <div
-        style={{
-          display: 'flex',
-          flexWrap: 'wrap',
-          gap: '14px',
-          marginBottom: '16px',
-        }}
-      >
-        <div style={{ flex: '1 1 320px', minWidth: '280px' }}>
-          <EquipmentTable program={program} publicKey={publicKey} />
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', flex: '0 0 280px', minWidth: '260px' }}>
-          <ActionsPanel program={program} publicKey={publicKey} onTxSuccess={onTxSuccess} />
-          <ActivityFeed items={activity} />
-        </div>
-      </div>
+      <EquipmentTable
+        program={program}
+        publicKey={publicKey}
+        onTxSuccess={onTxSuccess}
+        assets={assets}
+        assetsLoading={assetsLoading}
+        onAssetsChange={fetchAssets}
+      />
+
+      <ActivityFeed items={activity} />
 
       <BlockchainPanel lastTxSig={lastTxSig} />
     </div>

@@ -6,10 +6,12 @@ import { toast } from 'sonner'
 import { useLang } from '@/i18n/LangContext'
 import { showTxToast } from '@/components/Toast'
 import type { ActivityItem } from '@/components/ActivityFeed'
-import type { OnTxSuccess } from '@/components/ActionsPanel'
+import type { OnTxSuccess } from '@/components/EquipmentTable'
 import ActivityFeed from '@/components/ActivityFeed'
 import { getEscrowVaultPDA, getMedicalAssetPDA, getTechnicianProfilePDA } from '@/utils/pdas'
 import { loadOrCreateTechnicianKeypair } from '@/utils/technicianKeypair'
+import { toastAnchorTxError } from '@/utils/solanaTxError'
+import { getAssetDisplayName } from '@/utils/assetNames'
 import { truncatePubkey } from '@/utils/formatters'
 
 type Props = {
@@ -28,7 +30,7 @@ function lamportsToSolString(lamports: BN | number | string): string {
 
 /** Technician-facing layout: stats from on-chain profile, demo jobs, same completeMaintenance flow as ActionsPanel. */
 export default function TechnicianDashboard({ program, publicKey, onTxSuccess, activity }: Props) {
-  const { t } = useLang()
+  const { t, lang } = useLang()
   const techKp = useMemo(() => loadOrCreateTechnicianKeypair(), [])
   const [jobsCompleted, setJobsCompleted] = useState(0)
   const [totalEarnedLamports, setTotalEarnedLamports] = useState<string>('0')
@@ -113,7 +115,12 @@ export default function TechnicianDashboard({ program, publicKey, onTxSuccess, a
         .signers([techKp])
         .rpc()
       showTxToast(sig)
-      onTxSuccess(sig, `Completed maintenance for asset #${id}`, 'fix')
+      const doneLabel = getAssetDisplayName(publicKey.toBase58(), id)
+      onTxSuccess(
+        sig,
+        lang === 'es' ? `Mantenimiento completado — ${doneLabel}` : `Maintenance completed — ${doneLabel}`,
+        'fix'
+      )
       try {
         const prof = await (
           program.account as {
@@ -128,19 +135,22 @@ export default function TechnicianDashboard({ program, publicKey, onTxSuccess, a
         /* profile refetch optional */
       }
     } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : String(e))
+      await toastAnchorTxError(program, e)
     } finally {
       setLoading(false)
     }
-  }, [program, publicKey, assetIdInput, techKp, onTxSuccess])
+  }, [program, publicKey, assetIdInput, techKp, onTxSuccess, lang])
 
   const earningsItems = activity.filter((a) => a.type === 'fix' || a.type === 'tx')
   const progressPct = Math.min(100, (jobsCompleted / 10) * 100)
 
-  const demoRows = [
-    { asset: 'CT Scanner #0002', hospital: 'Hospital Central', reward: '0.5 SOL', id: '2' },
-    { asset: 'X-Ray Unit #0005', hospital: 'Clínica Norte', reward: '0.8 SOL', id: '5' },
-  ]
+  const demoRows = useMemo(
+    () => [
+      { asset: t('demoJobAsset1'), hospital: 'Hospital Central', reward: '0.5 SOL', id: '2' },
+      { asset: t('demoJobAsset2'), hospital: 'Clínica Norte', reward: '0.8 SOL', id: '5' },
+    ],
+    [t]
+  )
 
   return (
     <div>
@@ -350,16 +360,18 @@ export default function TechnicianDashboard({ program, publicKey, onTxSuccess, a
         }}
       >
         <h3 style={{ margin: 0, fontSize: '14px', fontWeight: 600, color: 'var(--text)' }}>{t('completeMaintenance')}</h3>
-        <p style={{ margin: '6px 0 14px', fontSize: '12px', color: 'var(--text2)' }}>{t('techCompleteDesc')}</p>
+        <p style={{ margin: '6px 0 8px', fontSize: '12px', color: 'var(--text2)' }}>{t('techCompleteDesc')}</p>
+        <p style={{ margin: '0 0 14px', fontSize: '11px', color: 'var(--text3)' }}>{t('techAssetIdRepairHint')}</p>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'flex-end' }}>
           <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-            <span style={{ fontSize: '11px', color: 'var(--text2)' }}>{t('assetId')}</span>
+            <span style={{ fontSize: '11px', color: 'var(--text2)' }}>{t('techAssetIdRepair')}</span>
             <input
               id="tech-asset-input"
               type="number"
               min={0}
               value={assetIdInput}
               onChange={(e) => setAssetIdInput(e.target.value)}
+              placeholder={t('techAssetIdRepairPlaceholder')}
               style={{
                 background: 'var(--surface2)',
                 border: '1px solid var(--border)',
@@ -368,7 +380,7 @@ export default function TechnicianDashboard({ program, publicKey, onTxSuccess, a
                 color: 'var(--text)',
                 fontFamily: 'DM Mono, monospace',
                 fontSize: '13px',
-                width: '140px',
+                width: '160px',
               }}
             />
           </label>

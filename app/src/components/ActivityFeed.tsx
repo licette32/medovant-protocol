@@ -52,7 +52,10 @@ export default function ActivityFeed({ items, headerTitle, headerDesc }: Props) 
           <li className="px-5 py-8 text-center text-sm italic text-tmuted">{t('noActivity')}</li>
         ) : (
           items.map((item, i) => {
-            const cfg = typeConfig[item.type]
+            // Defensive: bad `type` from future callbacks would crash cfg.icon
+            const safeType: ActivityItem['type'] =
+              item.type === 'ok' || item.type === 'warn' || item.type === 'tx' || item.type === 'fix' ? item.type : 'tx'
+            const cfg = typeConfig[safeType]
             const Icon = cfg.icon
             return (
               <li key={`${item.time}-${i}`} className="flex gap-3 px-5 py-3 text-sm transition-colors hover:bg-surface2">
