@@ -1,0 +1,34 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  box-sizing: border-box;
+}
+body {
+  background-color: #f0ede8;
+  font-family: 'DM Sans', sans-serif;
+  color: #1a1a1a;
+  margin: 0;
+}
+
+/* Wallet adapter: match Medovant lavender theme */
+.wallet-adapter-button {
+  background: #a78bfa !important;
+  border-radius: 8px !important;
+  font-family: 'DM Sans', sans-serif !important;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  height: 40px !important;
+  padding: 0 20px !important;
+  color: white !important;
+  transition: background 0.15s !important;
+}
+.wallet-adapter-button:hover {
+  background: #9061f9 !important;
+}
+.wallet-adapter-modal-wrapper {
+  background: white !important;
+  border-radius: 14px !important;
+}
