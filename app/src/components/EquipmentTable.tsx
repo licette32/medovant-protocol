@@ -367,7 +367,7 @@ export default function EquipmentTable({
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
-            className="rounded-md border border-[color:var(--amber-b)] bg-[var(--amber-d)] px-2 py-1 text-[11px] font-medium text-[color:var(--amber)] transition hover:opacity-90"
+            className="btn-issue rounded-md border border-[color:var(--amber-b)] bg-[var(--amber-d)] px-2 py-1 text-[13px] font-medium text-[color:var(--amber)] transition hover:opacity-90"
             onClick={() => {
               setIssueDescription('')
               setActiveModal({ type: 'report', assetId: asset.id })
@@ -377,7 +377,7 @@ export default function EquipmentTable({
           </button>
           <button
             type="button"
-            className="rounded-md border border-[color:var(--red-b)] bg-[var(--red-d)] px-2 py-1 text-[11px] font-medium text-[color:var(--red)] transition hover:opacity-90"
+            className="btn-decomm rounded-md border border-[color:var(--red-b)] bg-[var(--red-d)] px-2 py-1 text-[13px] font-medium text-[color:var(--red)] transition hover:opacity-90"
             onClick={() => setActiveModal({ type: 'decommission', assetId: asset.id })}
             aria-label={t('decommissionAsset')}
           >
@@ -390,7 +390,7 @@ export default function EquipmentTable({
       return (
         <button
           type="button"
-          className="rounded-md border border-[color:var(--green-b)] bg-[var(--green-d)] px-2 py-1 text-[11px] font-medium text-[color:var(--green)] transition hover:opacity-90"
+          className="btn-complete rounded-md border border-[color:var(--green-b)] bg-[var(--green-d)] px-2 py-1 text-[13px] font-medium text-[color:var(--green)] transition hover:opacity-90"
           onClick={() =>
             setActiveModal({
               type: 'complete',
@@ -404,12 +404,12 @@ export default function EquipmentTable({
       )
     }
     if (s === 'Under Maintenance') {
-      return <span className="text-[11px] text-tmuted">{t('waitingTech')}</span>
+      return <span className="text-[13px] text-tmuted">{t('waitingTech')}</span>
     }
     if (s === 'Decommissioned') {
-      return <span className="text-[11px] text-tmuted">{t('statusDecommissioned')}</span>
+      return <span className="text-[13px] text-tmuted">{t('statusDecommissioned')}</span>
     }
-    return <span className="text-[11px] text-tmuted">—</span>
+    return <span className="text-[13px] text-tmuted">—</span>
   }
 
   const showDemoRows = publicKey && !loading && assets.length === 0
@@ -467,7 +467,7 @@ export default function EquipmentTable({
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-[13px]" style={{ tableLayout: 'fixed', width: '100%' }}>
+          <table className="w-full text-left text-[14px]" style={{ tableLayout: 'fixed', width: '100%' }}>
             <colgroup>
               <col style={{ width: '28%' }} />
               <col style={{ width: '18%' }} />
@@ -476,7 +476,7 @@ export default function EquipmentTable({
               <col />
             </colgroup>
             <thead>
-              <tr className="border-b border-med bg-surface2 text-[11px] uppercase tracking-[0.05em] text-tsec">
+              <tr className="border-b border-med bg-surface2 text-[13px] uppercase tracking-[0.05em] text-tsec">
                 <th className="px-4 py-3">{t('colAsset')}</th>
                 <th className="px-4 py-3">{t('colStatus')}</th>
                 <th className="px-4 py-3">{t('colEscrow')}</th>
@@ -502,14 +502,14 @@ export default function EquipmentTable({
               {publicKey && !loading && assets.map((asset) => (
                 <tr key={asset.id} className="border-b border-med text-tpri transition-colors last:border-0 hover:bg-surface2">
                   <td className="px-4 py-3 align-top">
-                    <div style={{ fontWeight: 600, fontSize: '13px', color: 'var(--text)' }}>{asset.name}</div>
+                    <div style={{ fontWeight: 600, fontSize: '14px', color: 'var(--text)' }}>{asset.name}</div>
                     {asset.location && (
-                      <div style={{ fontSize: '10px', color: 'var(--text3)', marginTop: '2px' }}>📍 {asset.location}</div>
+                      <div style={{ fontSize: '13px', color: 'var(--text3)', marginTop: '2px' }}>📍 {asset.location}</div>
                     )}
                     <div
                       style={{
                         fontFamily: 'DM Mono, monospace',
-                        fontSize: '10px',
+                        fontSize: '13px',
                         color: 'var(--text3)',
                         marginTop: '4px',
                       }}
@@ -541,9 +541,9 @@ export default function EquipmentTable({
                     <tr key={`demo-${i}`} className="border-b border-med opacity-75 last:border-0">
                       <td className="px-4 py-3">
                         <div className="font-semibold text-tpri">
-                          Asset #{i + 1} <span className="text-[10px] font-normal text-tmuted">(demo)</span>
+                          Asset #{i + 1} <span className="text-[12px] font-normal text-tmuted">(demo)</span>
                         </div>
-                        <div className="mt-1 font-mono text-[10px] text-tmuted">—</div>
+                        <div className="mt-1 font-mono text-[12px] text-tmuted">—</div>
                       </td>
                       <td className="px-4 py-3">
                         <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${statusBadgeClass(st)}`}>
@@ -552,11 +552,11 @@ export default function EquipmentTable({
                       </td>
                       <td className="px-4 py-3 text-tmuted">—</td>
                       <td className="px-4 py-3 text-tmuted">—</td>
-                      <td className="px-4 py-3 text-[11px] text-tmuted">{t('sampleRow')}</td>
+                      <td className="px-4 py-3 text-[13px] text-tmuted">{t('sampleRow')}</td>
                     </tr>
                   ))}
                   <tr>
-                    <td colSpan={5} className="px-4 py-3 text-center text-[11px] text-tmuted">
+                    <td colSpan={5} className="px-4 py-3 text-center text-[13px] text-tmuted">
                       {t('noAssetsFound')}
                     </td>
                   </tr>
@@ -633,7 +633,7 @@ export default function EquipmentTable({
                     }}
                   />
                 </label>
-                <p className="mt-1 text-[10px] text-tmuted">{t('assetIdUnique')}</p>
+                <p className="mt-1 text-[12px] text-tmuted">{t('assetIdUnique')}</p>
                 <div className="mt-6 flex justify-end gap-2">
                   <button
                     type="button"
@@ -675,13 +675,13 @@ export default function EquipmentTable({
                     marginBottom: '16px',
                   }}
                 >
-                  <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text)' }}>{reportDisplayName}</div>
+                  <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)' }}>{reportDisplayName}</div>
                   {reportDisplayLocation && (
-                    <div style={{ fontSize: '10px', color: 'var(--text3)', marginTop: '4px' }}>
+                    <div style={{ fontSize: '12px', color: 'var(--text3)', marginTop: '4px' }}>
                       📍 {reportDisplayLocation}
                     </div>
                   )}
-                  <div style={{ fontFamily: 'DM Mono, monospace', fontSize: '10px', color: 'var(--text3)', marginTop: '4px' }}>
+                  <div style={{ fontFamily: 'DM Mono, monospace', fontSize: '12px', color: 'var(--text3)', marginTop: '4px' }}>
                     #{activeModal.assetId}
                   </div>
                 </div>
@@ -697,7 +697,7 @@ export default function EquipmentTable({
                     style={{ ...inputStyle, marginTop: '6px' }}
                   />
                 </label>
-                <p className="mt-1 text-[10px] text-tmuted">{t('rewardNote')}</p>
+                <p className="mt-1 text-[12px] text-tmuted">{t('rewardNote')}</p>
                 <label className="mt-4 block text-xs font-medium text-tsec">
                   {t('issueDescriptionLabel')}
                   <textarea
@@ -714,7 +714,7 @@ export default function EquipmentTable({
                     }}
                   />
                 </label>
-                <div className="mt-4 rounded-md border border-[color:var(--amber-b)] bg-[var(--amber-d)] px-3 py-2 text-[11px] text-[color:var(--amber)]">
+                <div className="mt-4 rounded-md border border-[color:var(--amber-b)] bg-[var(--amber-d)] px-3 py-2 text-[13px] text-[color:var(--amber)]">
                   ⚠ {t('escrowWarning')}
                 </div>
                 <div className="mt-6 flex justify-end gap-2">
@@ -761,7 +761,7 @@ export default function EquipmentTable({
                   </li>
                   <li className="text-[color:var(--green)]">{t('bothSign')}</li>
                 </ul>
-                <div className="mt-3 rounded-md border border-[color:var(--amber-b)] bg-[var(--amber-d)] px-3 py-2 text-[11px] text-[color:var(--amber)]">
+                <div className="mt-3 rounded-md border border-[color:var(--amber-b)] bg-[var(--amber-d)] px-3 py-2 text-[13px] text-[color:var(--amber)]">
                   {t('techNeedsSol')}
                 </div>
                 <div className="mt-6 flex justify-end gap-2">
@@ -790,7 +790,7 @@ export default function EquipmentTable({
                 <h4 className="text-base font-semibold text-tpri">
                   {t('decommissionTitle')} — {decommissionDisplayName}
                 </h4>
-                <div className="mt-4 rounded-md border border-[color:var(--red-b)] bg-[var(--red-d)] px-3 py-2 text-[11px] text-[color:var(--red)]">
+                <div className="mt-4 rounded-md border border-[color:var(--red-b)] bg-[var(--red-d)] px-3 py-2 text-[13px] text-[color:var(--red)]">
                   ⚠ {t('decommissionWarning')}
                 </div>
                 <div className="mt-6 flex justify-end gap-2">

@@ -117,8 +117,8 @@ export default function HospitalDashboard({
         {emoji}
       </div>
       <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text)' }}>{title}</div>
-      <div style={{ fontSize: '11px', color: 'var(--text2)' }}>{sub}</div>
-      <div style={{ fontSize: '10px', color: 'var(--text3)', marginTop: '6px' }}>{actions}</div>
+      <div style={{ fontSize: '13px', color: 'var(--text2)' }}>{sub}</div>
+      <div style={{ fontSize: '12px', color: 'var(--text3)', marginTop: '6px' }}>{actions}</div>
     </div>
   )
 
@@ -158,7 +158,7 @@ export default function HospitalDashboard({
     >
       <div
         style={{
-          fontSize: '11px',
+          fontSize: '13px',
           color: 'var(--text2)',
           textTransform: 'uppercase',
           letterSpacing: '0.05em',
@@ -177,7 +177,7 @@ export default function HospitalDashboard({
       >
         {value}
       </div>
-      <div style={{ fontSize: '10px', color: 'var(--text3)', marginTop: '4px' }}>{sub}</div>
+      <div style={{ fontSize: '12px', color: 'var(--text3)', marginTop: '4px' }}>{sub}</div>
     </div>
   )
 
@@ -192,7 +192,7 @@ export default function HospitalDashboard({
           marginBottom: '20px',
         }}
       >
-        <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text2)', marginBottom: '14px' }}>
+        <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text2)', marginBottom: '14px' }}>
           {t('protocolFlow')}
         </div>
         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', gap: '8px' }}>
@@ -210,7 +210,7 @@ export default function HospitalDashboard({
               background: 'var(--purple-d)',
               border: '1px solid var(--purple-b)',
               color: 'var(--purple)',
-              fontSize: '10px',
+              fontSize: '12px',
               fontWeight: 500,
               padding: '4px 12px',
               borderRadius: '8px',

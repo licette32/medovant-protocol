@@ -11,14 +11,22 @@ import ActivityFeed from '@/components/ActivityFeed'
 import { getEscrowVaultPDA, getMedicalAssetPDA, getTechnicianProfilePDA } from '@/utils/pdas'
 import { loadOrCreateTechnicianKeypair } from '@/utils/technicianKeypair'
 import { toastAnchorTxError } from '@/utils/solanaTxError'
-import { getAssetDisplayName } from '@/utils/assetNames'
-import { truncatePubkey } from '@/utils/formatters'
+import { getAssetDisplayName, getAssetMeta } from '@/utils/assetNames'
+import { mapAssetStatus, truncatePubkey } from '@/utils/formatters'
 
 type Props = {
   program: Program | null
   publicKey: PublicKey | null
   onTxSuccess: OnTxSuccess
   activity: ActivityItem[]
+}
+
+type AvailableJob = {
+  id: string
+  assetId: number
+  asset: string
+  hospital: string
+  reward: string
 }
 
 function lamportsToSolString(lamports: BN | number | string): string {
@@ -35,6 +43,8 @@ export default function TechnicianDashboard({ program, publicKey, onTxSuccess, a
   const [jobsCompleted, setJobsCompleted] = useState(0)
   const [totalEarnedLamports, setTotalEarnedLamports] = useState<string>('0')
   const [assetIdInput, setAssetIdInput] = useState('1')
+  const [availableJobs, setAvailableJobs] = useState<AvailableJob[]>([])
+  const [jobsLoading, setJobsLoading] = useState(false)
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
@@ -69,6 +79,47 @@ export default function TechnicianDashboard({ program, publicKey, onTxSuccess, a
       cancelled = true
     }
   }, [program, techKp.publicKey])
+
+  const fetchAvailableJobs = useCallback(async () => {
+    if (!program || !publicKey) {
+      setAvailableJobs([])
+      return
+    }
+    setJobsLoading(true)
+    const found: AvailableJob[] = []
+    for (let id = 1; id <= 10; id++) {
+      try {
+        const pda = getMedicalAssetPDA(publicKey, id)
+        const data = await (
+          program.account as {
+            medicalAsset: {
+              fetch: (a: PublicKey) => Promise<{
+                status: Record<string, unknown>
+                maintenanceReward: BN
+              }>
+            }
+          }
+        ).medicalAsset.fetch(pda)
+        if (mapAssetStatus(data.status as Record<string, unknown>) !== 'Issue Reported') continue
+        const meta = getAssetMeta(publicKey.toBase58(), id)
+        found.push({
+          id: String(id),
+          assetId: id,
+          asset: meta?.name ?? getAssetDisplayName(publicKey.toBase58(), id),
+          hospital: truncatePubkey(publicKey.toBase58()),
+          reward: `${lamportsToSolString(data.maintenanceReward)} SOL`,
+        })
+      } catch {
+        /* account missing — skip */
+      }
+    }
+    setAvailableJobs(found)
+    setJobsLoading(false)
+  }, [program, publicKey])
+
+  useEffect(() => {
+    void fetchAvailableJobs()
+  }, [fetchAvailableJobs])
 
   const runCompleteMaintenance = useCallback(async () => {
     if (!program || !publicKey) {
@@ -134,23 +185,16 @@ export default function TechnicianDashboard({ program, publicKey, onTxSuccess, a
       } catch {
         /* profile refetch optional */
       }
+      await fetchAvailableJobs()
     } catch (e: unknown) {
       await toastAnchorTxError(program, e)
     } finally {
       setLoading(false)
     }
-  }, [program, publicKey, assetIdInput, techKp, onTxSuccess, lang])
+  }, [program, publicKey, assetIdInput, techKp, onTxSuccess, lang, fetchAvailableJobs])
 
-  const earningsItems = activity.filter((a) => a.type === 'fix' || a.type === 'tx')
+  const earningsItems = activity.filter((a) => a.type === 'fix')
   const progressPct = Math.min(100, (jobsCompleted / 10) * 100)
-
-  const demoRows = useMemo(
-    () => [
-      { asset: t('demoJobAsset1'), hospital: 'Hospital Central', reward: '0.5 SOL', id: '2' },
-      { asset: t('demoJobAsset2'), hospital: 'Clínica Norte', reward: '0.8 SOL', id: '5' },
-    ],
-    [t]
-  )
 
   return (
     <div>
@@ -185,7 +229,7 @@ export default function TechnicianDashboard({ program, publicKey, onTxSuccess, a
           </div>
           <div>
             <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 600, color: 'var(--cyan)' }}>{t('techDashboard')}</h2>
-            <p style={{ margin: '4px 0 0', fontSize: '12px', color: 'var(--text2)' }}>{t('techSubtitle')}</p>
+            <p style={{ margin: '4px 0 0', fontSize: '13px', color: 'var(--text2)' }}>{t('techSubtitle')}</p>
           </div>
         </div>
         <div
@@ -195,7 +239,7 @@ export default function TechnicianDashboard({ program, publicKey, onTxSuccess, a
             borderRadius: '8px',
             padding: '8px 12px',
             fontFamily: 'DM Mono, monospace',
-            fontSize: '11px',
+            fontSize: '13px',
             color: 'var(--text2)',
           }}
         >
@@ -220,11 +264,11 @@ export default function TechnicianDashboard({ program, publicKey, onTxSuccess, a
             padding: '16px',
           }}
         >
-          <div style={{ fontSize: '11px', color: 'var(--text2)' }}>{t('totalEarned')}</div>
+          <div style={{ fontSize: '13px', color: 'var(--text2)' }}>{t('totalEarned')}</div>
           <div style={{ fontSize: '24px', fontWeight: 600, color: 'var(--green)', fontFamily: 'DM Mono, monospace' }}>
             {lamportsToSolString(totalEarnedLamports)} SOL
           </div>
-          <div style={{ fontSize: '10px', color: 'var(--text3)', marginTop: '6px' }}>{t('acrossAllJobs')}</div>
+          <div style={{ fontSize: '13px', color: 'var(--text3)', marginTop: '6px' }}>{t('acrossAllJobs')}</div>
         </div>
         <div
           style={{
@@ -235,7 +279,7 @@ export default function TechnicianDashboard({ program, publicKey, onTxSuccess, a
             padding: '16px',
           }}
         >
-          <div style={{ fontSize: '11px', color: 'var(--text2)' }}>{t('jobsCompleted')}</div>
+          <div style={{ fontSize: '13px', color: 'var(--text2)' }}>{t('jobsCompleted')}</div>
           <div style={{ fontSize: '24px', fontWeight: 600, color: 'var(--cyan)' }}>{jobsCompleted}</div>
           <div style={{ marginTop: '8px', height: '4px', background: 'var(--surface3)', borderRadius: '2px' }}>
             <div
@@ -248,7 +292,7 @@ export default function TechnicianDashboard({ program, publicKey, onTxSuccess, a
               }}
             />
           </div>
-          <div style={{ fontSize: '10px', color: 'var(--text3)', marginTop: '6px' }}>{t('onChainReputation')}</div>
+          <div style={{ fontSize: '13px', color: 'var(--text3)', marginTop: '6px' }}>{t('onChainReputation')}</div>
         </div>
         <div
           style={{
@@ -259,9 +303,9 @@ export default function TechnicianDashboard({ program, publicKey, onTxSuccess, a
             padding: '16px',
           }}
         >
-          <div style={{ fontSize: '11px', color: 'var(--text2)' }}>{t('nextRewardLabel')}</div>
+          <div style={{ fontSize: '13px', color: 'var(--text2)' }}>{t('nextRewardLabel')}</div>
           <div style={{ fontSize: '24px', fontWeight: 600, color: 'var(--text)' }}>—</div>
-          <div style={{ fontSize: '10px', color: 'var(--text3)', marginTop: '6px' }}>{t('nextRewardSub')}</div>
+          <div style={{ fontSize: '13px', color: 'var(--text3)', marginTop: '6px' }}>{t('nextRewardSub')}</div>
         </div>
       </div>
 
@@ -276,12 +320,12 @@ export default function TechnicianDashboard({ program, publicKey, onTxSuccess, a
       >
         <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)' }}>
           <h3 style={{ margin: 0, fontSize: '14px', fontWeight: 600, color: 'var(--text)' }}>{t('availableJobs')}</h3>
-          <p style={{ margin: '4px 0 0', fontSize: '11px', color: 'var(--text2)' }}>{t('availableJobsSub')}</p>
+          <p style={{ margin: '4px 0 0', fontSize: '13px', color: 'var(--text2)' }}>{t('availableJobsSub')}</p>
         </div>
         <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
             <thead>
-              <tr style={{ background: 'var(--surface2)', color: 'var(--text2)', fontSize: '11px' }}>
+              <tr style={{ background: 'var(--surface2)', color: 'var(--text2)', fontSize: '14px' }}>
                 <th style={{ textAlign: 'left', padding: '10px 16px', borderBottom: '1px solid var(--border)' }}>
                   {t('colAsset')}
                 </th>
@@ -300,9 +344,35 @@ export default function TechnicianDashboard({ program, publicKey, onTxSuccess, a
               </tr>
             </thead>
             <tbody>
-              {demoRows.map((row) => (
+              {jobsLoading && (
+                <tr>
+                  <td colSpan={5} style={{ padding: '14px 16px', color: 'var(--text2)' }}>
+                    {t('fetching')}
+                  </td>
+                </tr>
+              )}
+              {!jobsLoading && availableJobs.length === 0 && (
+                <tr>
+                  <td colSpan={5} style={{ padding: '14px 16px', color: 'var(--text2)' }}>
+                    {t('noAssetsFound')}
+                  </td>
+                </tr>
+              )}
+              {availableJobs.map((row) => (
                 <tr key={row.id} style={{ borderBottom: '1px solid var(--border)', color: 'var(--text)' }}>
-                  <td style={{ padding: '12px 16px' }}>{row.asset}</td>
+                  <td style={{ padding: '12px 16px' }}>
+                    <div style={{ fontWeight: 600, fontSize: '14px', color: 'var(--text)' }}>{row.asset}</div>
+                    <div
+                      style={{
+                        fontFamily: 'DM Mono, monospace',
+                        fontSize: '12px',
+                        color: 'var(--text3)',
+                        marginTop: '4px',
+                      }}
+                    >
+                      #{row.assetId}
+                    </div>
+                  </td>
                   <td style={{ padding: '12px 16px', color: 'var(--text2)' }}>{row.hospital}</td>
                   <td style={{ padding: '12px 16px', fontFamily: 'DM Mono, monospace', color: 'var(--green)' }}>
                     {row.reward}
@@ -310,7 +380,7 @@ export default function TechnicianDashboard({ program, publicKey, onTxSuccess, a
                   <td style={{ padding: '12px 16px' }}>
                     <span
                       style={{
-                        fontSize: '10px',
+                        fontSize: '13px',
                         fontWeight: 500,
                         padding: '3px 8px',
                         borderRadius: '999px',
@@ -325,14 +395,14 @@ export default function TechnicianDashboard({ program, publicKey, onTxSuccess, a
                   <td style={{ padding: '12px 16px' }}>
                     <button
                       type="button"
-                      onClick={() => setAssetIdInput(row.id)}
+                      onClick={() => setAssetIdInput(String(row.assetId))}
                       style={{
                         background: 'var(--cyan-d)',
                         border: '1px solid var(--cyan-b)',
                         color: 'var(--cyan)',
                         borderRadius: '6px',
                         padding: '4px 14px',
-                        fontSize: '11px',
+                        fontSize: '13px',
                         fontWeight: 500,
                         cursor: 'pointer',
                       }}
@@ -345,9 +415,11 @@ export default function TechnicianDashboard({ program, publicKey, onTxSuccess, a
             </tbody>
           </table>
         </div>
-        <p style={{ margin: 0, padding: '12px 20px', fontSize: '11px', fontStyle: 'italic', color: 'var(--text3)' }}>
-          {t('sampleDataNote')}
-        </p>
+        {availableJobs.length > 0 && (
+          <p style={{ margin: 0, padding: '12px 20px', fontSize: '13px', fontStyle: 'italic', color: 'var(--text3)' }}>
+            {t('techAssetIdRepairHint')}
+          </p>
+        )}
       </section>
 
       <section
@@ -360,11 +432,11 @@ export default function TechnicianDashboard({ program, publicKey, onTxSuccess, a
         }}
       >
         <h3 style={{ margin: 0, fontSize: '14px', fontWeight: 600, color: 'var(--text)' }}>{t('completeMaintenance')}</h3>
-        <p style={{ margin: '6px 0 8px', fontSize: '12px', color: 'var(--text2)' }}>{t('techCompleteDesc')}</p>
-        <p style={{ margin: '0 0 14px', fontSize: '11px', color: 'var(--text3)' }}>{t('techAssetIdRepairHint')}</p>
+        <p style={{ margin: '6px 0 8px', fontSize: '13px', color: 'var(--text2)' }}>{t('techCompleteDesc')}</p>
+        <p style={{ margin: '0 0 14px', fontSize: '13px', color: 'var(--text3)' }}>{t('techAssetIdRepairHint')}</p>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'flex-end' }}>
           <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-            <span style={{ fontSize: '11px', color: 'var(--text2)' }}>{t('techAssetIdRepair')}</span>
+            <span style={{ fontSize: '13px', color: 'var(--text2)' }}>{t('techAssetIdRepair')}</span>
             <input
               id="tech-asset-input"
               type="number"
@@ -394,7 +466,7 @@ export default function TechnicianDashboard({ program, publicKey, onTxSuccess, a
               color: 'var(--cyan)',
               borderRadius: '6px',
               padding: '8px 18px',
-              fontSize: '12px',
+              fontSize: '13px',
               fontWeight: 600,
               cursor: loading ? 'wait' : 'pointer',
               opacity: loading ? 0.7 : 1,

@@ -204,7 +204,7 @@ export default function ActionsPanel({ program, publicKey, onTxSuccess }: Props)
               }`}
             >
               <span className="block text-xs font-medium text-tpri">{title}</span>
-              <span className="mt-1 block text-[10px] leading-snug text-tmuted">{desc}</span>
+              <span className="mt-1 block text-[12px] leading-snug text-tmuted">{desc}</span>
             </button>
           ))}
         </div>

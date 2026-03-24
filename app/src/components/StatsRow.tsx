@@ -42,9 +42,9 @@ export default function StatsRow({ total = 0, active = 0, issues = 0, maintenanc
               <Icon className="h-4 w-4" strokeWidth={2} />
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-[11px] font-medium uppercase tracking-[0.05em] text-tsec">{t(labelKey)}</p>
+              <p className="text-[13px] font-medium uppercase tracking-[0.05em] text-tsec">{t(labelKey)}</p>
               <span className="mt-1 block text-[28px] font-semibold tabular-nums text-tpri">{values[key]}</span>
-              <p className="mt-0.5 text-[11px] text-tmuted">—</p>
+              <p className="mt-0.5 text-[13px] text-tmuted">—</p>
             </div>
           </div>
         </div>

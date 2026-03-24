@@ -16,7 +16,7 @@ export default function HeroCard() {
       aria-labelledby="hero-title"
     >
       <div className="relative z-[1]">
-        <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-[color:var(--green-b)] bg-[var(--green-d)] px-3 py-1 text-[11px] font-medium text-accentg">
+        <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-[color:var(--green-b)] bg-[var(--green-d)] px-3 py-1 text-[13px] font-medium text-accentg">
           <span className="h-2 w-2 rounded-full bg-accentg" aria-hidden />
           {t('devnetLive')}
         </div>
@@ -38,7 +38,7 @@ export default function HeroCard() {
           {pills.map((pill) => (
             <li
               key={pill}
-              className="rounded-full border border-med bg-surface2 px-[14px] py-[5px] text-[11px] text-tsec"
+              className="rounded-full border border-med bg-surface2 px-[14px] py-[5px] text-[13px] text-tsec"
             >
               {pill}
             </li>

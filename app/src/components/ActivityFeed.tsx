@@ -62,9 +62,9 @@ export default function ActivityFeed({ items, headerTitle, headerDesc }: Props) 
                 <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${cfg.dot}`} aria-hidden />
                 <div className="min-w-0 flex-1">
                   <p className="text-xs font-medium text-tpri">{item.message}</p>
-                  <p className="mt-0.5 flex items-center gap-1 text-[11px] text-tsec">
+                  <p className="mt-0.5 flex items-center gap-1 text-[13px] text-tsec">
                     <Icon className={`h-3 w-3 ${cfg.iconClass}`} />
-                    <span className="text-[10px] text-tmuted">{item.time}</span>
+                    <span className="text-[12px] text-tmuted">{item.time}</span>
                   </p>
                 </div>
               </li>

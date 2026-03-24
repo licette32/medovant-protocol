@@ -37,6 +37,11 @@ export default {
         sans: ['Inter', 'system-ui', 'sans-serif'],
         mono: ['DM Mono', 'monospace'],
       },
+      fontSize: {
+        xs: ['0.8125rem', { lineHeight: '1.2rem' }],
+        sm: ['0.9375rem', { lineHeight: '1.35rem' }],
+        base: ['1.0625rem', { lineHeight: '1.55rem' }],
+      },
     },
   },
   plugins: [],

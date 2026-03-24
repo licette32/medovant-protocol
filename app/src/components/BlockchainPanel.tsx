@@ -19,15 +19,15 @@ export default function BlockchainPanel({ lastTxSig }: Props) {
       <h3 className="text-sm font-semibold text-tpri">{t('onChainInfo')}</h3>
       <dl className="mt-4 divide-y divide-med">
         <div className="flex justify-between gap-4 py-3 first:pt-0">
-          <dt className="text-[11px] font-medium uppercase tracking-wide text-tsec">{t('programId')}</dt>
+          <dt className="text-[13px] font-medium uppercase tracking-wide text-tsec">{t('programId')}</dt>
           <dd className="max-w-[60%] text-right font-mono text-xs text-tpri break-all">{PROGRAM_ID}</dd>
         </div>
         <div className="flex justify-between gap-4 py-3">
-          <dt className="text-[11px] font-medium uppercase tracking-wide text-tsec">{t('network')}</dt>
+          <dt className="text-[13px] font-medium uppercase tracking-wide text-tsec">{t('network')}</dt>
           <dd className="font-mono text-xs text-tpri">Solana Devnet</dd>
         </div>
         <div className="flex justify-between gap-4 py-3">
-          <dt className="text-[11px] font-medium uppercase tracking-wide text-tsec">{t('lastTransaction')}</dt>
+          <dt className="text-[13px] font-medium uppercase tracking-wide text-tsec">{t('lastTransaction')}</dt>
           <dd>
             {safeSig ? (
               <a

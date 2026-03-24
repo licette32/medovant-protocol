@@ -18,7 +18,7 @@ export default function Topbar({ lastTxSig: _ }: Props) {
     border: '1px solid var(--border)',
     borderRadius: '6px',
     padding: '6px 10px',
-    fontSize: '12px',
+    fontSize: '13px',
     color: 'var(--text2)',
     cursor: 'pointer',
     fontFamily: 'Inter, sans-serif',
@@ -40,7 +40,7 @@ export default function Topbar({ lastTxSig: _ }: Props) {
     >
       <div>
         <h1 style={{ fontSize: '18px', fontWeight: 600, color: 'var(--text)', margin: 0 }}>{t('overview')}</h1>
-        <p style={{ fontSize: '12px', color: 'var(--text2)', marginTop: '2px' }}>{t('subtitle')}</p>
+        <p style={{ fontSize: '13px', color: 'var(--text2)', marginTop: '2px' }}>{t('subtitle')}</p>
       </div>
       <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
         <button type="button" onClick={toggleTheme} style={btnStyle}>
@@ -65,7 +65,7 @@ export default function Topbar({ lastTxSig: _ }: Props) {
               ...btnStyle,
               cursor: 'default',
               fontFamily: 'DM Mono, monospace',
-              fontSize: '11px',
+              fontSize: '13px',
             }}
             title={publicKey.toBase58()}
           >
