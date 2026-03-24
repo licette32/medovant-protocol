@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="app/public/logo-dark.png" alt="Medovant Logo" height="120" />
+<img src="app/public/logo-home.png" alt="Medovant Logo" height="120" />
 
 # MEDOVANT PROTOCOL
 
