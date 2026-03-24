@@ -271,17 +271,6 @@ v3.0 🔭  Plataforma
 
 ---
 
-## 📊 Criterios del hackathon
-
-| Criterio | Medovant |
-|----------|----------|
-| **Viabilidad técnica** | ✅ Anchor + vault PDA escrow + invoke_signed + double-signature + Devnet deploy |
-| **Prototipo funcional** | ✅ Flujo completo end-to-end funcionando en Devnet |
-| **Nivel de complejidad** | ✅ System-owned vault PDA + create_account CPI + TechnicianProfile + failure tracking |
-| **Originalidad** | ✅ Protocolo de coordinación para infraestructura médica — no es un DEX ni un NFT |
-
----
-
 ## 🛠️ Stack
 
 ![Solana](https://img.shields.io/badge/Solana-Devnet-3FAF8F?style=flat-square&logo=solana&logoColor=white)
