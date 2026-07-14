@@ -4,7 +4,7 @@
 
 # MEDOVANT PROTOCOL
 
-### *El Protocolo de Escrow para Mantenimiento de Infraestructura Médica Crítica*
+### *Infraestructura verificable para el mantenimiento de equipamiento médico crítico*
 
 [![Solana](https://img.shields.io/badge/Solana-Devnet-3FAF8F?style=for-the-badge&logo=solana&logoColor=white)](https://explorer.solana.com/address/5JMd8ADy1KHBhohX6NLbz6WQdyCQTfLd55Gmzo2r34WD?cluster=devnet)
 [![Anchor](https://img.shields.io/badge/Anchor-0.32.1-5BC0BE?style=for-the-badge)](https://www.anchor-lang.com/)
@@ -14,41 +14,59 @@
 
 <br/>
 
-**[🎥 Ver Demo en YouTube](https://youtu.be/k2O5ubKsi5w)** &nbsp;·&nbsp;
-**[🔍 Ver en Solana Explorer](https://explorer.solana.com/address/5JMd8ADy1KHBhohX6NLbz6WQdyCQTfLd55Gmzo2r34WD?cluster=devnet)** &nbsp;·&nbsp;
+**[🎥 Ver Demo](https://youtu.be/k2O5ubKsi5w)** &nbsp;·&nbsp;
+**[🔍 Solana Explorer](https://explorer.solana.com/address/5JMd8ADy1KHBhohX6NLbz6WQdyCQTfLd55Gmzo2r34WD?cluster=devnet)** &nbsp;·&nbsp;
 **[📂 Documentación](docs/)**
 
 </div>
 
 ---
 
-## 🏥 El problema
+## Estado actual
 
-El mantenimiento de equipos médicos en hospitales depende de **papel, confianza ciega y procesos manuales**. No hay verificación, no hay historial confiable, y los pagos llegan tarde o no llegan.
+> **En incubación activa** — Solana Latam Labs · WayLearn · Junio–Agosto 2026
 
-| Actor | Problema |
-|-------|----------|
-| 🏥 **Hospital** | Paga sin poder verificar si el trabajo se hizo |
-| 🔧 **Técnico** | Cobra tarde, o no cobra — sin reputación verificable |
-| 📋 **Sistema** | Sin trazabilidad para auditorías regulatorias |
+| Milestone | Fecha | Estado |
+|-----------|-------|--------|
+| 🧭 Roadmap inicial del producto | 26 jun | ✅ Entregado |
+| 🧱 Business Foundation | 3 jul | ✅ Entregado |
+| 🏗️ Arquitectura técnica del MVP | 10 jul | ✅ Entregado |
+| 🔍 Validación inicial con usuarios | 31 jul | 🔄 En progreso |
+| ⚙️ MVP funcional | 21 ago | ⏳ Pendiente |
+| 🎤 Pitch deck + Demo Day Readiness | 28 ago | ⏳ Pendiente |
+| 🚀 Demo Day | 31 ago | ⏳ Pendiente |
 
-> *Un resonador fuera de servicio o un ventilador mal calibrado no es solo un problema operativo — es un riesgo directo para pacientes.*
+El programa Anchor está deployado en Devnet con 8 tests automatizados pasando. Durante la incubación el foco es validar el producto con usuarios reales del sector salud y madurar la arquitectura hacia v1.1.
 
 ---
 
-## ✅ La solución
+## El problema
 
-Medovant crea **gemelos digitales** de equipos médicos en Solana. Cada evento del ciclo de vida queda registrado on-chain. Los pagos se bloquean en un vault PDA al reportar un problema y se liberan automáticamente cuando el mantenimiento está verificado por ambas partes.
+El mantenimiento de equipos médicos críticos — ventiladores, resonadores, equipos de diagnóstico — se gestiona con **papel, confianza ciega y procesos manuales**. No hay verificación independiente de que el trabajo se realizó, los pagos llegan tarde o generan conflictos, y reunir documentación para una auditoría regulatoria puede tomar días.
+
+| Actor | Problema hoy |
+|-------|-------------|
+| 🏥 **Hospital / clínica** | Paga el mantenimiento sin poder verificar de forma independiente si el trabajo se hizo correctamente |
+| 🔧 **Técnico biomédico** | Cobra tarde, o no cobra — sin forma de construir reputación verificable entre distintos clientes |
+| 📋 **Auditor / regulador** | Sin trazabilidad confiable del historial de mantenimiento para procesos de auditoría |
+
+---
+
+## La solución
+
+Medovant registra cada activo médico como una identidad digital on-chain. Los pagos se bloquean en un vault PDA al reportar una falla y se liberan automáticamente cuando hospital y técnico confirman que el trabajo fue realizado — sin intermediarios, sin papel, sin posibilidad de modificar el historial.
 
 ```
 El hospital paga solo cuando el trabajo está verificado.
 El técnico cobra automáticamente al completarlo.
-Sin intermediarios. Sin papel. La confianza está garantizada por el protocolo.
+El auditor consulta el historial sin depender de nadie.
 ```
+
+> Medovant nace desde la perspectiva de la ingeniería clínica: el protocolo fue diseñado desde el conocimiento del dominio, no al revés.
 
 ---
 
-## ⚡ ¿Por qué Solana?
+## ¿Por qué Solana?
 
 <table>
 <tr>
@@ -56,21 +74,21 @@ Sin intermediarios. Sin papel. La confianza está garantizada por el protocolo.
 
 **🚀 Velocidad**
 
-Finalidad sub-segundo. Las emergencias médicas no pueden esperar confirmaciones de minutos.
+Finalidad sub-segundo. Las intervenciones médicas no pueden esperar confirmaciones de minutos.
 
 </td>
 <td align="center" width="33%">
 
 **💰 Costo**
 
-Registrar 500 equipos cuesta menos de $5. Viable para cualquier hospital.
+Registrar cientos de equipos cuesta menos de $5. Viable para hospitales de cualquier tamaño.
 
 </td>
 <td align="center" width="33%">
 
 **🔐 Escrow nativo**
 
-PDAs como vault trustless. Sin contratos complejos ni intermediarios.
+Vault PDA system-owned con `invoke_signed`. Sin contratos complejos ni intermediarios.
 
 </td>
 </tr>
@@ -78,7 +96,7 @@ PDAs como vault trustless. Sin contratos complejos ni intermediarios.
 
 ---
 
-## 🔄 Flujo del protocolo
+## Flujo del protocolo
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -104,107 +122,107 @@ PDAs como vault trustless. Sin contratos complejos ni intermediarios.
 
 ---
 
-## 🏗️ Arquitectura
+## Arquitectura
 
 ```
-Wallet (Phantom / Solflare)
+Wallet (Phantom)
         │
         ▼
-React Frontend (Vite + TypeScript)
-├── 🏥 Hospital Mode   → gestión, control, escrow
-└── 🔧 Technician Mode → jobs, earnings, reputación
+React Frontend (Vite + TypeScript + Tailwind)
+├── 🏥 Hospital Mode   → registro, incidencias, verificación
+└── 🔧 Technician Mode → jobs disponibles, cobro, reputación
         │
         ▼
 Anchor Program ── 5JMd8ADy1KHBhohX6NLbz6WQdyCQTfLd55Gmzo2r34WD
         │
-        ├── MedicalAsset PDA      seeds: ["equipment", hospital, asset_id]
-        │     status · failure_count · maintenance_reward · bump
-        │
-        ├── EscrowVault PDA       seeds: ["vault", medical_asset]
-        │     system-owned · holds SOL · space = 0
-        │     liberado via invoke_signed
-        │
-        └── TechnicianProfile PDA seeds: ["technician", technician]
-              jobs_completed · total_earned · bump
+        ├── Asset PDA              seeds: ["equipment", hospital, asset_id]
+        ├── Vault PDA              seeds: ["vault", asset_pda]  ← system-owned escrow
+        └── TechnicianProfile PDA  seeds: ["technician", tech_pubkey]
+
+        [v1.1 — en desarrollo]
+        ├── Event Indexer (Helius RPC)
+        └── PostgreSQL / Supabase
 ```
+
+→ Ver arquitectura completa en [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 
 ---
 
-## 📋 Instrucciones del smart contract
+## Instrucciones del smart contract
 
 | Instrucción | Firmantes | Efecto |
 |-------------|-----------|--------|
-| `initialize_asset(asset_id)` | 🏥 Hospital | Crea MedicalAsset PDA · status = Active |
-| `report_issue(reward)` | 🏥 Hospital | Bloquea SOL en vault PDA · failure_count++ |
-| `complete_maintenance` | 🏥 + 🔧 Ambos | Libera escrow al técnico · actualiza reputación |
-| `decommission_asset` | 🏥 Hospital | Cierra PDA · rent devuelto al hospital |
 | `register_technician` | 🔧 Técnico | Crea TechnicianProfile PDA |
+| `initialize_asset(asset_id)` | 🏥 Hospital | Crea Asset PDA · status = Active |
+| `report_issue(reward)` | 🏥 Hospital | Bloquea SOL en Vault PDA · failure_count++ |
+| `complete_maintenance` | 🏥 + 🔧 Ambos | Doble firma · libera escrow · reputación +1 |
+| `decommission_asset` | 🏥 Hospital | Cierra PDA · rent devuelto al hospital |
 
 ---
 
-## 🔐 Mecanismo de escrow
+## Mecanismo de escrow
 
-El vault PDA es una cuenta **system-owned (space=0)** — el patrón correcto de producción para escrow en Solana:
+El Vault PDA es una cuenta **system-owned (space=0)** — el patrón correcto para escrow nativo de SOL en Solana:
 
 ```rust
-// 1. report_issue: crea vault y bloquea SOL
+// report_issue: crea vault y bloquea SOL
 system_program::create_account(CpiContext::new_with_signer(...))?;
 system_program::transfer(CpiContext::new(...), reward)?;
 
-// 2. complete_maintenance: libera SOL al técnico via invoke_signed
+// complete_maintenance: libera SOL al técnico via invoke_signed
 system_program::transfer(
     CpiContext::new_with_signer(..., &[vault_seeds]),
     reward
 )?;
 ```
 
-> ⚠️ Las cuentas program-owned no pueden ser debitadas via CPI. Un vault system-owned con `invoke_signed` es el único patrón correcto para escrow nativo de SOL.
+> ⚠️ Las cuentas program-owned no pueden ser debitadas via CPI ordinario. El vault system-owned con `invoke_signed` es el único patrón correcto para escrow nativo de SOL.
 
 ---
 
-## 🛡️ Seguridad
+## Seguridad
 
 | Mecanismo | Dónde se aplica |
 |-----------|----------------|
-| `has_one = hospital` | report_issue, decommission_asset |
-| `require!(status == Active)` | report_issue |
-| `require!(status == IssueReported)` | complete_maintenance |
-| `require!(reward > 0)` | report_issue |
-| Double signature | complete_maintenance (hospital + técnico) |
+| `has_one = hospital` | `report_issue`, `decommission_asset` |
+| `require!(status == Active)` | `report_issue` |
+| `require!(status == IssueReported)` | `complete_maintenance` |
+| `require!(reward > 0)` | `report_issue` |
+| Doble firma obligatoria | `complete_maintenance` (hospital + técnico) |
 | PDA seed validation | Todas las instrucciones via Anchor |
 
 ---
 
-## 💻 Frontend
+## Frontend
 
 <table>
 <tr>
 <td width="50%">
 
 **🏥 Hospital Mode**
-- Flujo del protocolo visual
-- KPIs conectados a datos on-chain
-- Tabla con acciones contextuales por equipo
-- Modales inline por estado del activo
+- Dashboard con KPIs conectados a datos on-chain
+- Registro y gestión de activos médicos
+- Reporte de incidencias con bloqueo de fondos
+- Verificación y aprobación de mantenimientos
 
 </td>
 <td width="50%">
 
 **🔧 Technician Mode**
-- Earnings on-chain (SOL ganado)
-- Jobs completed con barra de reputación
-- Available jobs con escrow bloqueado
+- Earnings on-chain verificables
+- Jobs completados con reputación on-chain
+- Órdenes disponibles con escrow garantizado
 - Complete & Get Paid en un click
 
 </td>
 </tr>
 </table>
 
-**Extras:** 🌙 Light/Dark mode · 🌐 Bilingüe EN/ES · 📱 Responsive · ⚡ Wallet adapter (Phantom + Solflare)
+Light/Dark mode · Bilingüe EN/ES · Responsive · Wallet adapter (Phantom)
 
 ---
 
-## 🧪 Tests
+## Tests
 
 ```bash
 anchor test
@@ -226,7 +244,7 @@ medovant
 
 ---
 
-## 🚀 Correr localmente
+## Correr localmente
 
 **Prerrequisitos:** Rust · Solana CLI · Anchor 0.32.1 · Node.js 18+
 
@@ -244,34 +262,49 @@ cd app && npm install && npm run dev
 # → localhost:5173
 ```
 
-> 💡 El técnico demo usa un keypair en `localStorage`. Para fondear en Devnet:
-> ```bash
-> solana airdrop 1 <PUBKEY_TECNICO> --url devnet
-> ```
+> 💡 El técnico demo usa un keypair temporal en `localStorage` para facilitar pruebas con una sola wallet. En producción el técnico firmará con su propia wallet Phantom.
 
 ---
 
-## 🗺️ Roadmap
+## Roadmap
 
 ```
-v1.0 ✅  MVP Hackathon
-          Escrow PDA · Reputación on-chain · Dual role UI · Devnet deploy
+v1.0 ✅  MVP técnico (Hackathon — Marzo 2026)
+          Escrow PDA · Reputación on-chain · Dual role UI · 8 tests · Devnet deploy
 
-v1.1 🔜  Infraestructura
-          Indexer de eventos · Historial completo · QR por equipo
+v1.1 🔄  Incubación WayLearn (Junio–Agosto 2026)
+          Indexador de eventos · Historial completo por activo
+          QR físico por equipo · Metadata off-chain (Supabase)
+          Evidencia adjunta al mantenimiento · Validación con usuarios reales
 
-v2.0 📋  Ecosistema
-          Marketplace de técnicos · Clasificación equipos Clase I/II/III
-          NFTs de certificación (threshold: jobs_completed >= 50)
+v2.0 📋  Post-Demo Day
+          Abstracción de wallet para usuarios no cripto
+          Integración con sistemas hospitalarios (CMMS/HIS)
+          Marketplace de técnicos certificados · API pública
 
-v3.0 🔭  Plataforma
-          IA assistant para técnicos · DeFi yield en escrow
-          DAO de gobernanza · Integración con sistemas HIS
+v3.0 🔭  Escala
+          Redes hospitalarias y ministerios de salud
+          Empresas de mantenimiento tercerizadas
+          Infraestructura crítica fuera del sector salud
 ```
+
+→ Ver roadmap detallado en [docs/ROADMAP.md](docs/ROADMAP.md)
 
 ---
 
-## 🛠️ Stack
+## Deployment
+
+| | |
+|---|---|
+| **Network** | Solana Devnet |
+| **Program ID** | `5JMd8ADy1KHBhohX6NLbz6WQdyCQTfLd55Gmzo2r34WD` |
+| **Upgrade Authority** | `2BaSXPAHkDZyusqegFACrHfU1WdBiWNuPdJNZTsvri76` |
+| **Explorer** | [Ver programa en Devnet](https://explorer.solana.com/address/5JMd8ADy1KHBhohX6NLbz6WQdyCQTfLd55Gmzo2r34WD?cluster=devnet) |
+| **Demo** | [Ver en YouTube](https://youtu.be/k2O5ubKsi5w) |
+
+---
+
+## Stack
 
 ![Solana](https://img.shields.io/badge/Solana-Devnet-3FAF8F?style=flat-square&logo=solana&logoColor=white)
 ![Anchor](https://img.shields.io/badge/Anchor-0.32.1-5BC0BE?style=flat-square)
@@ -283,23 +316,10 @@ v3.0 🔭  Plataforma
 
 ---
 
-## 📦 Deployment
-
-| | |
-|---|---|
-| **Network** | Solana Devnet |
-| **Program ID** | `5JMd8ADy1KHBhohX6NLbz6WQdyCQTfLd55Gmzo2r34WD` |
-| **Upgrade Authority** | `2BaSXPAHkDZyusqegFACrHfU1WdBiWNuPdJNZTsvri76` |
-| **Explorer** | [Ver programa](https://explorer.solana.com/address/5JMd8ADy1KHBhohX6NLbz6WQdyCQTfLd55Gmzo2r34WD?cluster=devnet) |
-| **Demo video** | [Ver en YouTube](https://youtu.be/k2O5ubKsi5w) |
-| **Frontend** | `cd app && npm run dev` → localhost:5173 |
-
----
-
 <div align="center">
 
-*Solana LATAM Hackathon 2026 · Marzo 20–23*
+**Solana Latam Labs · Incubación WayLearn · 2026**
 
-**"Infraestructura crítica construida sobre Solana."**
+*"Infraestructura crítica construida sobre Solana."*
 
 </div>
