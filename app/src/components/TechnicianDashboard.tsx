@@ -11,8 +11,9 @@ import ActivityFeed from '@/components/ActivityFeed'
 import { getEscrowVaultPDA, getMedicalAssetPDA, getTechnicianProfilePDA } from '@/utils/pdas'
 import { loadOrCreateTechnicianKeypair } from '@/utils/technicianKeypair'
 import { toastAnchorTxError } from '@/utils/solanaTxError'
-import { getAssetDisplayName, getAssetMeta } from '@/utils/assetNames'
-import { mapAssetStatus, truncatePubkey } from '@/utils/formatters'
+import { getAssetDisplayName } from '@/utils/assetNames'
+import { truncatePubkey } from '@/utils/formatters'
+import { fetchHospitalAssets } from '@/utils/assetDiscovery'
 
 type Props = {
   program: Program | null
@@ -86,35 +87,22 @@ export default function TechnicianDashboard({ program, publicKey, onTxSuccess, a
       return
     }
     setJobsLoading(true)
-    const found: AvailableJob[] = []
-    for (let id = 1; id <= 10; id++) {
-      try {
-        const pda = getMedicalAssetPDA(publicKey, id)
-        const data = await (
-          program.account as {
-            medicalAsset: {
-              fetch: (a: PublicKey) => Promise<{
-                status: Record<string, unknown>
-                maintenanceReward: BN
-              }>
-            }
-          }
-        ).medicalAsset.fetch(pda)
-        if (mapAssetStatus(data.status as Record<string, unknown>) !== 'Issue Reported') continue
-        const meta = getAssetMeta(publicKey.toBase58(), id)
-        found.push({
-          id: String(id),
-          assetId: id,
-          asset: meta?.name ?? getAssetDisplayName(publicKey.toBase58(), id),
-          hospital: truncatePubkey(publicKey.toBase58()),
-          reward: `${lamportsToSolString(data.maintenanceReward)} SOL`,
-        })
-      } catch {
-        /* account missing — skip */
-      }
+    try {
+      const assets = await fetchHospitalAssets(program, publicKey)
+      setAvailableJobs(
+        assets
+          .filter((a) => a.status === 'Issue Reported')
+          .map((a) => ({
+            id: String(a.id),
+            assetId: a.id,
+            asset: a.name,
+            hospital: truncatePubkey(publicKey.toBase58()),
+            reward: `${lamportsToSolString(a.maintenanceReward)} SOL`,
+          }))
+      )
+    } finally {
+      setJobsLoading(false)
     }
-    setAvailableJobs(found)
-    setJobsLoading(false)
   }, [program, publicKey])
 
   useEffect(() => {

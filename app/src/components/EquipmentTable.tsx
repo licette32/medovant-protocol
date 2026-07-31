@@ -7,12 +7,13 @@ import { toast } from 'sonner'
 import type { ActivityItem } from '@/components/ActivityFeed'
 import { useLang } from '@/i18n/LangContext'
 import type { Lang, TranslationKey } from '@/i18n/translations'
-import { getAssetDisplayName, getAssetMeta, saveAssetMeta } from '@/utils/assetNames'
-import { mapAssetStatus, truncatePubkey } from '@/utils/formatters'
+import { getAssetDisplayName, saveAssetMeta } from '@/utils/assetNames'
+import { truncatePubkey } from '@/utils/formatters'
 import { getEscrowVaultPDA, getMedicalAssetPDA, getTechnicianProfilePDA } from '@/utils/pdas'
 import { loadOrCreateTechnicianKeypair } from '@/utils/technicianKeypair'
 import { showTxToast } from '@/components/Toast'
 import { toastAnchorTxError } from '@/utils/solanaTxError'
+import { fetchHospitalAssets } from '@/utils/assetDiscovery'
 
 export type OnTxSuccess = (sig: string, message: string, type: ActivityItem['type']) => void
 
@@ -32,7 +33,7 @@ type Props = {
   program: Program | null
   publicKey: PublicKey | null
   onTxSuccess: OnTxSuccess
-  /** When set, table uses this data instead of fetching IDs 1–5 internally. */
+  /** When set, table uses this data instead of fetching internally. */
   assets?: OnChainAsset[]
   /** Called after successful txs and when user clicks Refresh (parent refetches for KPIs). */
   onAssetsChange?: () => void | Promise<void>
@@ -64,12 +65,6 @@ interface ModalState {
 }
 
 const DEMO_STATUSES = ['Active', 'Issue Reported', 'Under Maintenance'] as const
-
-function lamportsToNum(v: { toNumber?: () => number; toString?: () => string } | number): number {
-  if (typeof v === 'number') return v
-  if (typeof v.toNumber === 'function') return v.toNumber()
-  return Number(v.toString?.() ?? '0')
-}
 
 function statusBadgeClass(status: string): string {
   if (status === 'Active')
@@ -141,39 +136,11 @@ export default function EquipmentTable({
   const fetchAssets = useCallback(async () => {
     if (!program || !publicKey) return
     setLoadingInternal(true)
-    const found: OnChainAsset[] = []
-    for (let id = 1; id <= 5; id++) {
-      try {
-        const pda = getMedicalAssetPDA(publicKey, id)
-        const data = await (
-          program.account as {
-            medicalAsset: {
-              fetch: (a: PublicKey) => Promise<{
-                status: Record<string, unknown>
-                maintenanceReward: { toNumber?: () => number; toString?: () => string }
-                failureCount: number
-                lastMaintenance: { toNumber?: () => number; toString?: () => string }
-              }>
-            }
-          }
-        ).medicalAsset.fetch(pda)
-        const meta = getAssetMeta(publicKey.toBase58(), id)
-        found.push({
-          id,
-          pda,
-          name: meta?.name ?? `Asset #${id}`,
-          location: meta?.location,
-          status: mapAssetStatus(data.status as Record<string, unknown>),
-          maintenanceReward: lamportsToNum(data.maintenanceReward),
-          failureCount: data.failureCount,
-          lastMaintenance: lamportsToNum(data.lastMaintenance),
-        })
-      } catch {
-        /* account missing — skip */
-      }
+    try {
+      setAssetsInternal(await fetchHospitalAssets(program, publicKey))
+    } finally {
+      setLoadingInternal(false)
     }
-    setAssetsInternal(found)
-    setLoadingInternal(false)
   }, [program, publicKey])
 
   async function refreshAssets() {

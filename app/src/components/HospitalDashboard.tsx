@@ -8,9 +8,7 @@ import ActivityFeed from '@/components/ActivityFeed'
 import type { ActivityItem } from '@/components/ActivityFeed'
 import BlockchainPanel from '@/components/BlockchainPanel'
 import EquipmentTable from '@/components/EquipmentTable'
-import { getAssetMeta } from '@/utils/assetNames'
-import { mapAssetStatus } from '@/utils/formatters'
-import { getMedicalAssetPDA } from '@/utils/pdas'
+import { fetchHospitalAssets } from '@/utils/assetDiscovery'
 
 type Props = {
   program: Program | null
@@ -18,12 +16,6 @@ type Props = {
   onTxSuccess: OnTxSuccess
   activity: ActivityItem[]
   lastTxSig?: string
-}
-
-function lamportsToNum(v: { toNumber?: () => number; toString?: () => string } | number): number {
-  if (typeof v === 'number') return v
-  if (typeof v.toNumber === 'function') return v.toNumber()
-  return Number(v.toString?.() ?? '0')
 }
 
 /** Hospital-facing layout: protocol narrative, KPIs, equipment + actions + chain info. */
@@ -41,39 +33,11 @@ export default function HospitalDashboard({
   const fetchAssets = useCallback(async () => {
     if (!program || !publicKey) return
     setAssetsLoading(true)
-    const found: OnChainAsset[] = []
-    for (let id = 1; id <= 10; id++) {
-      try {
-        const pda = getMedicalAssetPDA(publicKey, id)
-        const data = await (
-          program.account as {
-            medicalAsset: {
-              fetch: (a: PublicKey) => Promise<{
-                status: Record<string, unknown>
-                maintenanceReward: { toNumber?: () => number; toString?: () => string }
-                failureCount: number
-                lastMaintenance: { toNumber?: () => number; toString?: () => string }
-              }>
-            }
-          }
-        ).medicalAsset.fetch(pda)
-        const meta = getAssetMeta(publicKey.toBase58(), id)
-        found.push({
-          id,
-          pda,
-          name: meta?.name ?? `Asset #${id}`,
-          location: meta?.location,
-          status: mapAssetStatus(data.status as Record<string, unknown>),
-          maintenanceReward: lamportsToNum(data.maintenanceReward),
-          failureCount: data.failureCount,
-          lastMaintenance: lamportsToNum(data.lastMaintenance),
-        })
-      } catch {
-        /* account missing — skip */
-      }
+    try {
+      setAssets(await fetchHospitalAssets(program, publicKey))
+    } finally {
+      setAssetsLoading(false)
     }
-    setAssets(found)
-    setAssetsLoading(false)
   }, [program, publicKey])
 
   useEffect(() => {
