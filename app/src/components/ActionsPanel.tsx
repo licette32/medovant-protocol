@@ -5,7 +5,6 @@ import { useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { useLang } from '@/i18n/LangContext'
 import { getEscrowVaultPDA, getMedicalAssetPDA, getTechnicianProfilePDA } from '@/utils/pdas'
-import { loadOrCreateTechnicianKeypair } from '@/utils/technicianKeypair'
 import { showTxToast } from '@/components/Toast'
 import { toastAnchorTxError } from '@/utils/solanaTxError'
 import type { OnTxSuccess } from '@/components/EquipmentTable'
@@ -118,10 +117,9 @@ export default function ActionsPanel({ program, publicKey, onTxSuccess }: Props)
     }
     setLoading(true)
     try {
-      const techKp = loadOrCreateTechnicianKeypair()
       const pda = getMedicalAssetPDA(publicKey!, id)
       const vault = getEscrowVaultPDA(pda)
-      const techProfile = getTechnicianProfilePDA(techKp.publicKey)
+      const techProfile = getTechnicianProfilePDA(publicKey!)
       try {
         await (program!.account as { technicianProfile: { fetch: (a: PublicKey) => Promise<unknown> } }).technicianProfile.fetch(
           techProfile
@@ -130,11 +128,10 @@ export default function ActionsPanel({ program, publicKey, onTxSuccess }: Props)
         const regSig = await program!
           .methods.registerTechnician()
           .accounts({
-            technician: techKp.publicKey,
+            technician: publicKey!,
             technicianProfile: techProfile,
             systemProgram: SystemProgram.programId,
           })
-          .signers([techKp])
           .rpc()
         showTxToast(regSig)
         onTxSuccess(regSig, 'Technician profile registered', 'ok')
@@ -143,13 +140,12 @@ export default function ActionsPanel({ program, publicKey, onTxSuccess }: Props)
         .methods.completeMaintenance()
         .accounts({
           hospital: publicKey!,
-          technician: techKp.publicKey,
+          technician: publicKey!,
           medicalAsset: pda,
           escrowVault: vault,
           technicianProfile: techProfile,
           systemProgram: SystemProgram.programId,
         })
-        .signers([techKp])
         .rpc()
       showTxToast(sig)
       onTxSuccess(sig, `Completed maintenance for asset #${id}`, 'fix')
@@ -233,7 +229,7 @@ export default function ActionsPanel({ program, publicKey, onTxSuccess }: Props)
             {modal === 'complete' && (
               <div className="mt-2 space-y-2 text-xs text-tsec">
                 <p className="font-medium text-tpri">{t('demoTechnician')}</p>
-                <p>{t('technicianKeypairBody')}</p>
+                <p>{t('technicianWalletBody')}</p>
               </div>
             )}
             <label className="mt-4 block text-xs font-medium text-tsec">

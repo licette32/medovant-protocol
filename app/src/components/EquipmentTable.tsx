@@ -1,6 +1,6 @@
 import type { Program } from '@coral-xyz/anchor'
 import BN from 'bn.js'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { PublicKey, SystemProgram } from '@solana/web3.js'
 import { toast } from 'sonner'
@@ -10,7 +10,6 @@ import type { Lang, TranslationKey } from '@/i18n/translations'
 import { getAssetDisplayName, saveAssetMeta } from '@/utils/assetNames'
 import { truncatePubkey } from '@/utils/formatters'
 import { getEscrowVaultPDA, getMedicalAssetPDA, getTechnicianProfilePDA } from '@/utils/pdas'
-import { loadOrCreateTechnicianKeypair } from '@/utils/technicianKeypair'
 import { showTxToast } from '@/components/Toast'
 import { toastAnchorTxError } from '@/utils/solanaTxError'
 import { fetchHospitalAssets } from '@/utils/assetDiscovery'
@@ -131,8 +130,6 @@ export default function EquipmentTable({
   const [rewardSol, setRewardSol] = useState('0.05')
   const [issueDescription, setIssueDescription] = useState('')
 
-  const techKp = useMemo(() => loadOrCreateTechnicianKeypair(), [])
-
   const fetchAssets = useCallback(async () => {
     if (!program || !publicKey) return
     setLoadingInternal(true)
@@ -250,7 +247,7 @@ export default function EquipmentTable({
     try {
       const pda = getMedicalAssetPDA(publicKey, assetId)
       const vault = getEscrowVaultPDA(pda)
-      const techProfile = getTechnicianProfilePDA(techKp.publicKey)
+      const techProfile = getTechnicianProfilePDA(publicKey)
       try {
         await (program.account as { technicianProfile: { fetch: (a: PublicKey) => Promise<unknown> } }).technicianProfile.fetch(
           techProfile
@@ -259,11 +256,10 @@ export default function EquipmentTable({
         const regSig = await program.methods
           .registerTechnician()
           .accounts({
-            technician: techKp.publicKey,
+            technician: publicKey,
             technicianProfile: techProfile,
             systemProgram: SystemProgram.programId,
           })
-          .signers([techKp])
           .rpc()
         showTxToast(regSig)
         onTxSuccess(regSig, 'Technician profile registered', 'ok')
@@ -272,13 +268,12 @@ export default function EquipmentTable({
         .completeMaintenance()
         .accounts({
           hospital: publicKey,
-          technician: techKp.publicKey,
+          technician: publicKey,
           medicalAsset: pda,
           escrowVault: vault,
           technicianProfile: techProfile,
           systemProgram: SystemProgram.programId,
         })
-        .signers([techKp])
         .rpc()
       showTxToast(sig)
       const doneName = publicKey ? getAssetDisplayName(publicKey.toBase58(), assetId) : `Asset #${assetId}`
@@ -724,7 +719,7 @@ export default function EquipmentTable({
                   </li>
                   <li>
                     <span className="text-tmuted">{t('releasedToTech')}:</span>{' '}
-                    <span className="font-mono text-tpri">{truncatePubkey(techKp.publicKey.toBase58())}</span>
+                    <span className="font-mono text-tpri">{publicKey ? truncatePubkey(publicKey.toBase58()) : '—'}</span>
                   </li>
                   <li className="text-[color:var(--green)]">{t('bothSign')}</li>
                 </ul>

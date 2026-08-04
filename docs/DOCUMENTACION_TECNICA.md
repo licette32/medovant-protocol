@@ -9,7 +9,7 @@ Documento de referencia del **Medovant**: protocolo de mantenimiento con escrow 
 
 ## 1. Resumen ejecutivo
 
-Medovant modela equipamiento médico como cuentas **PDA** con una máquina de estados y un **vault PDA** por activo para retener **SOL** hasta completar el mantenimiento. El hospital firma con la wallet conectada (Phantom/Solflare); el flujo técnico demo usa un **keypair en `localStorage`**.
+Medovant modela equipamiento médico como cuentas **PDA** con una máquina de estados y un **vault PDA** por activo para retener **SOL** hasta completar el mantenimiento. El hospital firma con la wallet conectada (Phantom/Solflare); en el demo la misma wallet conectada firma también como técnico (doble firma en `complete_maintenance`), sin guardar material de claves en el navegador.
 
 La SPA (`app/`) incluye:
 
@@ -142,7 +142,7 @@ cp target/idl/medovant.json app/src/idl/medovant.json
 
 ### 5.5 Dashboard técnico
 
-**`TechnicianDashboard.tsx`:** perfil on-chain, keypair demo (`technicianKeypair.ts`), formulario de completar por `assetId`, copy i18n para trabajos demo.
+**`TechnicianDashboard.tsx`:** perfil on-chain de la wallet conectada, formulario de completar por `assetId`, copy i18n para trabajos demo.
 
 ### 5.6 Utilidades destacadas
 
@@ -151,7 +151,6 @@ cp target/idl/medovant.json app/src/idl/medovant.json
 | `utils/formatters.ts` | `mapAssetStatus`, `normalizeTxSignature`, `truncatePubkey` / `truncateSig`, `lamportsToSol` |
 | `utils/assetNames.ts` | `getAssetMeta`, `saveAssetMeta`, `getAssetDisplayName` |
 | `utils/solanaTxError.ts` | `toastAnchorTxError`, logs de `SendTransactionError` |
-| `utils/technicianKeypair.ts` | Keypair demo persistido (`medovant_tech_keypair`) |
 | `components/Toast.tsx` | Toasts de tx + enlace Explorer |
 | `ActivityFeed.tsx` | Tipos de actividad con manejo defensivo |
 | `BlockchainPanel.tsx` | Enlaces Explorer con firma segura |

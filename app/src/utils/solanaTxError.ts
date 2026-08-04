@@ -29,7 +29,7 @@ export async function toastAnchorTxError(program: Program | null, err: unknown):
 
   if (/insufficient lamports/i.test(message)) {
     message =
-      'Insufficient SOL: the demo technician keypair must pay rent/fees. Fund it on devnet: solana airdrop 1 <TECH_PUBKEY> --url devnet (pubkey from localStorage keypair — see README or console).'
+      'Insufficient SOL: the connected wallet needs SOL on Devnet to pay rent/fees. Fund it with: solana airdrop 1 <YOUR_PUBKEY> --url devnet'
   }
 
   toast.error(message)

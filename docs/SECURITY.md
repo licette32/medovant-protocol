@@ -51,7 +51,7 @@ Security considerations for the current Devnet implementation and guidance towar
 
 ## 7. Production Hardening Roadmap
 
-- Replace demo keypair flow with secure auth model
+- Enforce distinct hospital/technician wallets per role (drop single-wallet demo path)
 - Add monitoring/alerting for failed tx patterns
 - Introduce audit and formal security review before mainnet
 
