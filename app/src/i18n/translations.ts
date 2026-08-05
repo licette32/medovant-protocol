@@ -56,7 +56,7 @@ export const translations = {
     submit: 'Submit',
     cancel: 'Cancel',
     warningDecommission: 'Warning: this action is irreversible',
-    demoTechnician: 'Demo technician',
+    demoTechnician: 'Technician signer',
     // Activity
     activity: 'Activity',
     activityDesc: 'Latest on-chain actions this session',
@@ -86,8 +86,8 @@ export const translations = {
     escrowApprox: 'Escrow ≈',
     statusLabel: 'Status',
     decommissionModalTitle: 'Decommission asset',
-    technicianKeypairBody:
-      'A devnet technician keypair is stored in this browser (localStorage) to sign the technician role. Fund it with a little SOL on devnet if registration fails.',
+    technicianWalletBody:
+      'Your connected wallet signs as the technician. Make sure it has SOL on Devnet to pay transaction fees.',
     themeLight: 'Light',
     themeDark: 'Dark',
     roleHospitalTab: 'Hospital',
@@ -129,7 +129,7 @@ export const translations = {
     onChainReputation: 'On-chain reputation',
     techCompleteDesc:
       'Enter the asset ID to complete maintenance and receive escrow payment',
-    demoTechPrefix: 'Demo tech',
+    demoTechPrefix: 'Technician',
     btnComplete: 'Complete',
     refreshAssets: 'Refresh',
     registerNew: 'Register asset',
@@ -155,9 +155,9 @@ export const translations = {
     completeModalTitle: 'Confirm maintenance',
     completeModalSubtitle: 'You confirm the work was done. Escrow releases automatically.',
     escrowLocked: 'Escrow locked',
-    releasedToTech: 'Released to demo technician',
+    releasedToTech: 'Released to technician',
     bothSign: 'Both parties sign: Hospital + Technician',
-    techNeedsSol: 'The demo technician needs SOL on Devnet for fees.',
+    techNeedsSol: 'Your wallet needs SOL on Devnet to pay transaction fees.',
     confirmRelease: 'Confirm and release payment →',
     decommissionTitle: 'Decommission',
     registerAssetShort: 'Register',
@@ -231,7 +231,7 @@ export const translations = {
     submit: 'Confirmar',
     cancel: 'Cancelar',
     warningDecommission: 'Advertencia: esta acción es irreversible',
-    demoTechnician: 'Técnico demo',
+    demoTechnician: 'Firmante técnico',
     // Activity
     activity: 'Actividad',
     activityDesc: 'Últimas acciones on-chain de esta sesión',
@@ -260,8 +260,8 @@ export const translations = {
     escrowApprox: 'Garantía ≈',
     statusLabel: 'Estado',
     decommissionModalTitle: 'Baja del equipo',
-    technicianKeypairBody:
-      'Un keypair de técnico de devnet se guarda en este navegador (localStorage) para firmar el rol de técnico. Financiálo con un poco de SOL en devnet si falla el registro.',
+    technicianWalletBody:
+      'Tu wallet conectada firma como técnico. Asegurate de que tenga SOL en Devnet para pagar las fees de transacción.',
     themeLight: 'Claro',
     themeDark: 'Oscuro',
     roleHospitalTab: 'Hospital',
@@ -303,7 +303,7 @@ export const translations = {
     onChainReputation: 'Reputación on-chain',
     techCompleteDesc:
       'Ingresá el ID del activo para completar el mantenimiento y recibir el pago del escrow',
-    demoTechPrefix: 'Técnico demo',
+    demoTechPrefix: 'Técnico',
     btnComplete: 'Completar',
     refreshAssets: 'Actualizar',
     registerNew: 'Registrar equipo',
@@ -329,9 +329,9 @@ export const translations = {
     completeModalTitle: 'Confirmar mantenimiento',
     completeModalSubtitle: 'Confirmás que el trabajo fue realizado. El escrow se libera automáticamente.',
     escrowLocked: 'Escrow bloqueado',
-    releasedToTech: 'Se libera a: técnico demo',
+    releasedToTech: 'Se libera a: técnico',
     bothSign: 'Ambas partes firman: Hospital + Técnico',
-    techNeedsSol: 'El técnico demo necesita SOL en Devnet para fees.',
+    techNeedsSol: 'Tu wallet necesita SOL en Devnet para pagar las fees de transacción.',
     confirmRelease: 'Confirmar y liberar pago →',
     decommissionTitle: 'Dar de baja',
     registerAssetShort: 'Registrar',

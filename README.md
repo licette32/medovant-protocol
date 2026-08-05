@@ -262,7 +262,7 @@ cd app && npm install && npm run dev
 # → localhost:5173
 ```
 
-> 💡 El técnico demo usa un keypair temporal en `localStorage` para facilitar pruebas con una sola wallet. En producción el técnico firmará con su propia wallet Phantom.
+> 💡 El técnico firma con su propia wallet conectada (Phantom) — el rol técnico usa tu wallet en modo demo. Asegurate de tener SOL en Devnet para las fees de transacción.
 
 ---
 

@@ -1,7 +1,7 @@
 import type { Program } from '@coral-xyz/anchor'
 import BN from 'bn.js'
 import { PublicKey, SystemProgram } from '@solana/web3.js'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { useLang } from '@/i18n/LangContext'
 import { showTxToast } from '@/components/Toast'
@@ -9,7 +9,6 @@ import type { ActivityItem } from '@/components/ActivityFeed'
 import type { OnTxSuccess } from '@/components/EquipmentTable'
 import ActivityFeed from '@/components/ActivityFeed'
 import { getEscrowVaultPDA, getMedicalAssetPDA, getTechnicianProfilePDA } from '@/utils/pdas'
-import { loadOrCreateTechnicianKeypair } from '@/utils/technicianKeypair'
 import { toastAnchorTxError } from '@/utils/solanaTxError'
 import { getAssetDisplayName } from '@/utils/assetNames'
 import { truncatePubkey } from '@/utils/formatters'
@@ -40,7 +39,6 @@ function lamportsToSolString(lamports: BN | number | string): string {
 /** Technician-facing layout: stats from on-chain profile, demo jobs, same completeMaintenance flow as ActionsPanel. */
 export default function TechnicianDashboard({ program, publicKey, onTxSuccess, activity }: Props) {
   const { t, lang } = useLang()
-  const techKp = useMemo(() => loadOrCreateTechnicianKeypair(), [])
   const [jobsCompleted, setJobsCompleted] = useState(0)
   const [totalEarnedLamports, setTotalEarnedLamports] = useState<string>('0')
   const [assetIdInput, setAssetIdInput] = useState('1')
@@ -49,13 +47,13 @@ export default function TechnicianDashboard({ program, publicKey, onTxSuccess, a
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    if (!program) {
+    if (!program || !publicKey) {
       setJobsCompleted(0)
       setTotalEarnedLamports('0')
       return
     }
     let cancelled = false
-    const profilePk = getTechnicianProfilePDA(techKp.publicKey)
+    const profilePk = getTechnicianProfilePDA(publicKey)
     ;(async () => {
       try {
         const prof = await (
@@ -79,7 +77,7 @@ export default function TechnicianDashboard({ program, publicKey, onTxSuccess, a
     return () => {
       cancelled = true
     }
-  }, [program, techKp.publicKey])
+  }, [program, publicKey])
 
   const fetchAvailableJobs = useCallback(async () => {
     if (!program || !publicKey) {
@@ -123,7 +121,7 @@ export default function TechnicianDashboard({ program, publicKey, onTxSuccess, a
     try {
       const pda = getMedicalAssetPDA(publicKey, id)
       const vault = getEscrowVaultPDA(pda)
-      const techProfile = getTechnicianProfilePDA(techKp.publicKey)
+      const techProfile = getTechnicianProfilePDA(publicKey)
       try {
         await (
           program.account as { technicianProfile: { fetch: (a: PublicKey) => Promise<unknown> } }
@@ -132,11 +130,10 @@ export default function TechnicianDashboard({ program, publicKey, onTxSuccess, a
         const regSig = await program
           .methods.registerTechnician()
           .accounts({
-            technician: techKp.publicKey,
+            technician: publicKey,
             technicianProfile: techProfile,
             systemProgram: SystemProgram.programId,
           })
-          .signers([techKp])
           .rpc()
         showTxToast(regSig)
         onTxSuccess(regSig, 'Technician profile registered', 'ok')
@@ -145,13 +142,12 @@ export default function TechnicianDashboard({ program, publicKey, onTxSuccess, a
         .methods.completeMaintenance()
         .accounts({
           hospital: publicKey,
-          technician: techKp.publicKey,
+          technician: publicKey,
           medicalAsset: pda,
           escrowVault: vault,
           technicianProfile: techProfile,
           systemProgram: SystemProgram.programId,
         })
-        .signers([techKp])
         .rpc()
       showTxToast(sig)
       const doneLabel = getAssetDisplayName(publicKey.toBase58(), id)
@@ -179,7 +175,7 @@ export default function TechnicianDashboard({ program, publicKey, onTxSuccess, a
     } finally {
       setLoading(false)
     }
-  }, [program, publicKey, assetIdInput, techKp, onTxSuccess, lang, fetchAvailableJobs])
+  }, [program, publicKey, assetIdInput, onTxSuccess, lang, fetchAvailableJobs])
 
   const earningsItems = activity.filter((a) => a.type === 'fix')
   const progressPct = Math.min(100, (jobsCompleted / 10) * 100)
@@ -231,7 +227,7 @@ export default function TechnicianDashboard({ program, publicKey, onTxSuccess, a
             color: 'var(--text2)',
           }}
         >
-          {t('demoTechPrefix')}: {truncatePubkey(techKp.publicKey.toBase58())}
+          {t('demoTechPrefix')}: {publicKey ? truncatePubkey(publicKey.toBase58()) : '—'}
         </div>
       </section>
 
