@@ -44,6 +44,7 @@ export default function TechnicianDashboard({ program, publicKey, onTxSuccess, a
   const [assetIdInput, setAssetIdInput] = useState('1')
   const [availableJobs, setAvailableJobs] = useState<AvailableJob[]>([])
   const [jobsLoading, setJobsLoading] = useState(false)
+  const [jobsError, setJobsError] = useState(false)
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
@@ -85,6 +86,7 @@ export default function TechnicianDashboard({ program, publicKey, onTxSuccess, a
       return
     }
     setJobsLoading(true)
+    setJobsError(false)
     try {
       const assets = await fetchHospitalAssets(program, publicKey)
       setAvailableJobs(
@@ -98,6 +100,8 @@ export default function TechnicianDashboard({ program, publicKey, onTxSuccess, a
             reward: `${lamportsToSolString(a.maintenanceReward)} SOL`,
           }))
       )
+    } catch {
+      setJobsError(true)
     } finally {
       setJobsLoading(false)
     }
@@ -335,7 +339,14 @@ export default function TechnicianDashboard({ program, publicKey, onTxSuccess, a
                   </td>
                 </tr>
               )}
-              {!jobsLoading && availableJobs.length === 0 && (
+              {!jobsLoading && jobsError && (
+                <tr>
+                  <td colSpan={5} style={{ padding: '14px 16px', color: 'var(--red)' }}>
+                    {t('loadAssetsError')}
+                  </td>
+                </tr>
+              )}
+              {!jobsLoading && !jobsError && availableJobs.length === 0 && (
                 <tr>
                   <td colSpan={5} style={{ padding: '14px 16px', color: 'var(--text2)' }}>
                     {t('noAssetsFound')}

@@ -38,6 +38,8 @@ type Props = {
   onAssetsChange?: () => void | Promise<void>
   /** Loading state when `assets` is controlled by parent. */
   assetsLoading?: boolean
+  /** Fetch failed (RPC timeout etc.) — show error state instead of empty/demo rows. */
+  assetsError?: boolean
 }
 
 function activityAfterRegister(lang: Lang, name: string, id: number): string {
@@ -114,6 +116,7 @@ export default function EquipmentTable({
   assets: assetsFromParent,
   onAssetsChange,
   assetsLoading: assetsLoadingFromParent,
+  assetsError,
 }: Props) {
   const { t, lang } = useLang()
   const isControlled = assetsFromParent !== undefined
@@ -374,7 +377,7 @@ export default function EquipmentTable({
     return <span className="text-[13px] text-tmuted">—</span>
   }
 
-  const showDemoRows = publicKey && !loading && assets.length === 0
+  const showDemoRows = publicKey && !loading && !assetsError && assets.length === 0
 
   const reportAssetId = activeModal?.type === 'report' ? activeModal.assetId : undefined
   const reportAssetRow = reportAssetId != null ? assets.find((a) => a.id === reportAssetId) : undefined
@@ -458,6 +461,13 @@ export default function EquipmentTable({
                 <tr>
                   <td colSpan={5} className="px-4 py-8 text-center text-sm text-tsec">
                     {t('fetching')}
+                  </td>
+                </tr>
+              )}
+              {publicKey && !loading && assetsError && (
+                <tr>
+                  <td colSpan={5} className="px-4 py-8 text-center text-sm text-[color:var(--red)]">
+                    {t('loadAssetsError')}
                   </td>
                 </tr>
               )}
