@@ -275,6 +275,9 @@ pub mod medovant {
 }
 
 #[derive(Accounts)]
+// Hospital-scoped constraint is OUT OF SCOPE here: register_technician is the technician's
+// self-registration of their own reputation PDA (seeds are the technician's own pubkey, no
+// medical_asset involved), so it is intentionally hospital-agnostic.
 pub struct RegisterTechnician<'info> {
     #[account(mut)]
     pub technician: Signer<'info>,
@@ -345,7 +348,8 @@ pub struct CompleteMaintenance<'info> {
     #[account(
         mut,
         seeds = [b"equipment", medical_asset.hospital.as_ref(), &medical_asset.asset_id.to_le_bytes()],
-        bump = medical_asset.bump
+        bump = medical_asset.bump,
+        has_one = hospital,
     )]
     pub medical_asset: Account<'info, MedicalAsset>,
 
