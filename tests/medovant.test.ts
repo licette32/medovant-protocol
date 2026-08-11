@@ -17,6 +17,7 @@ describe("medovant", () => {
   const program = anchor.workspace.Medovant as Program<Medovant>;
 
   const hospital = Keypair.generate();
+  const rogueHospital = Keypair.generate();
   const technician = Keypair.generate();
   const assetId = new anchor.BN(1);
 
@@ -37,6 +38,12 @@ describe("medovant", () => {
       LAMPORTS_PER_SOL
     );
     await provider.connection.confirmTransaction(sigTech);
+
+    const sigRogue = await provider.connection.requestAirdrop(
+      rogueHospital.publicKey,
+      LAMPORTS_PER_SOL
+    );
+    await provider.connection.confirmTransaction(sigRogue);
 
     [medicalAssetPda, medicalAssetBump] = PublicKey.findProgramAddressSync(
       [
@@ -213,6 +220,35 @@ describe("medovant", () => {
     expect(profile.totalEarned.toString()).to.equal(
       REWARD_LAMPORTS.toString()
     );
+  });
+
+  it("complete_maintenance falla si el hospital firmante no coincide con medical_asset.hospital (has_one)", async () => {
+    try {
+      await program.methods
+        .completeMaintenance()
+        .accounts({
+          hospital: rogueHospital.publicKey,
+          technician: technician.publicKey,
+          medicalAsset: medicalAssetPda,
+          escrowVault: escrowVaultPda,
+          technicianProfile: technicianProfilePda,
+          systemProgram: SystemProgram.programId,
+        })
+        .signers([rogueHospital, technician])
+        .rpc();
+      expect.fail("Debería haber lanzado un error de constraint has_one");
+    } catch (e: unknown) {
+      const msg =
+        e && typeof e === "object" && "message" in e
+          ? String((e as { message: string }).message)
+          : "";
+      expect(msg).to.satisfy(
+        (m: string) =>
+          m.toLowerCase().includes("has one") ||
+          m.includes("2027") ||
+          m.includes("0x7eb")
+      );
+    }
   });
 
   it("complete_maintenance falla si status no es IssueReported (NoIssueReported)", async () => {
