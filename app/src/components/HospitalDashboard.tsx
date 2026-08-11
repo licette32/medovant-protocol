@@ -29,12 +29,16 @@ export default function HospitalDashboard({
   const { t, lang } = useLang()
   const [assets, setAssets] = useState<OnChainAsset[]>([])
   const [assetsLoading, setAssetsLoading] = useState(false)
+  const [assetsError, setAssetsError] = useState(false)
 
   const fetchAssets = useCallback(async () => {
     if (!program || !publicKey) return
     setAssetsLoading(true)
+    setAssetsError(false)
     try {
       setAssets(await fetchHospitalAssets(program, publicKey))
+    } catch {
+      setAssetsError(true)
     } finally {
       setAssetsLoading(false)
     }
@@ -207,6 +211,7 @@ export default function HospitalDashboard({
         onTxSuccess={onTxSuccess}
         assets={assets}
         assetsLoading={assetsLoading}
+        assetsError={assetsError}
         onAssetsChange={fetchAssets}
       />
 

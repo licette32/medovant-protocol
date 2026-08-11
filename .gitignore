@@ -14,3 +14,4 @@ scripts/idl
 scripts/copy-idl.js
 DOCUMENTACION.md
 INTEGRITY_REPORT.md
+docs/*.pdf
