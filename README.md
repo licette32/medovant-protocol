@@ -10,7 +10,7 @@
 [![Anchor](https://img.shields.io/badge/Anchor-0.32.1-5BC0BE?style=for-the-badge)](https://www.anchor-lang.com/)
 [![React](https://img.shields.io/badge/React-18-E6B980?style=for-the-badge&logo=react&logoColor=white)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3FAF8F?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![Tests](https://img.shields.io/badge/Tests-8%20passing-3FAF8F?style=for-the-badge)](tests/)
+[![Tests](https://img.shields.io/badge/Tests-9%20passing-3FAF8F?style=for-the-badge)](tests/)
 
 <br/>
 
@@ -31,12 +31,12 @@
 | 🧭 Roadmap inicial del producto | 26 jun | ✅ Entregado |
 | 🧱 Business Foundation | 3 jul | ✅ Entregado |
 | 🏗️ Arquitectura técnica del MVP | 10 jul | ✅ Entregado |
-| 🔍 Validación inicial con usuarios | 31 jul | 🔄 En progreso |
-| ⚙️ MVP funcional | 21 ago | ⏳ Pendiente |
+| 🔍 Validación inicial con usuarios | 31 jul | ✅ Entregado |
+| ⚙️ MVP funcional | 21 ago | 🔄 En desarrollo |
 | 🎤 Pitch deck + Demo Day Readiness | 28 ago | ⏳ Pendiente |
 | 🚀 Demo Day | 31 ago | ⏳ Pendiente |
 
-El programa Anchor está deployado en Devnet con 8 tests automatizados pasando. Durante la incubación el foco es validar el producto con usuarios reales del sector salud y madurar la arquitectura hacia v1.1.
+El programa Anchor está deployado en Devnet con 9 tests pasando.
 
 ---
 
@@ -129,6 +129,7 @@ Wallet (Phantom)
         │
         ▼
 React Frontend (Vite + TypeScript + Tailwind)
+├── Landing value-first → elige rol (🏥 Hospital | 🔧 Técnico) → wallet
 ├── 🏥 Hospital Mode   → registro, incidencias, verificación
 └── 🔧 Technician Mode → jobs disponibles, cobro, reputación
         │
@@ -184,7 +185,7 @@ system_program::transfer(
 
 | Mecanismo | Dónde se aplica |
 |-----------|----------------|
-| `has_one = hospital` | `report_issue`, `decommission_asset` |
+| `has_one = hospital` | `report_issue`, `complete_maintenance`, `decommission_asset` |
 | `require!(status == Active)` | `report_issue` |
 | `require!(status == IssueReported)` | `complete_maintenance` |
 | `require!(reward > 0)` | `report_issue` |
@@ -218,7 +219,13 @@ system_program::transfer(
 </tr>
 </table>
 
-Light/Dark mode · Bilingüe EN/ES · Responsive · Wallet adapter (Phantom)
+**Landing value-first (nuevo)**
+
+- El visitante entiende la propuesta de valor antes de cualquier interacción con la wallet: hero con tagline + descripción, 3 tarjetas de actores (Hospital · Técnico · Auditor) y 3 pasos de "Cómo funciona" con línea de tiempo numerada.
+- Dos CTA (`Entrar como Hospital` / `Entrar como Técnico`) reemplazan al botón único de conectar: el modal de wallet abre solo después de elegir rol, y el rol elegido navega al dashboard correspondiente al conectarse.
+- Efecto hover verde en los CTA y secciones con estética más corporativa.
+
+Light/Dark mode · Bilingüe EN/ES · Responsive · Wallet adapter (Phantom) · Estados de error ante fallas de RPC en dashboards
 
 ---
 
@@ -228,19 +235,7 @@ Light/Dark mode · Bilingüe EN/ES · Responsive · Wallet adapter (Phantom)
 anchor test
 ```
 
-```
-medovant
-  ✔ register_technician: creates technician profile
-  ✔ initialize_asset: creates PDA with Active status
-  ✔ report_issue with reward=0 fails with RewardTooLow
-  ✔ report_issue: locks escrow in vault PDA
-  ✔ report_issue fails if asset not Active
-  ✔ complete_maintenance: releases escrow to technician
-  ✔ complete_maintenance fails if not IssueReported
-  ✔ decommission_asset: closes account and returns rent
-
-8 passing ✅
-```
+9 tests pasando ✅
 
 ---
 
@@ -270,10 +265,11 @@ cd app && npm install && npm run dev
 
 ```
 v1.0 ✅  MVP técnico (Hackathon — Marzo 2026)
-          Escrow PDA · Reputación on-chain · Dual role UI · 8 tests · Devnet deploy
+          Escrow PDA · Reputación on-chain · Dual role UI · 9 tests · Devnet deploy
 
 v1.1 🔄  Incubación WayLearn (Junio–Agosto 2026)
-          Indexador de eventos · Historial completo por activo
+          Landing value-first con roles (#18) · Estados de error en dashboards (#12)
+          Panel admin read-only (#19) · Indexador de eventos · Historial completo por activo
           QR físico por equipo · Metadata off-chain (Supabase)
           Evidencia adjunta al mantenimiento · Validación con usuarios reales
 
