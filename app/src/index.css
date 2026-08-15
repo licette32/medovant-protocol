@@ -199,3 +199,30 @@ body {
   color: #c94040 !important;
   border-color: rgba(201, 64, 64, 0.2) !important;
 }
+
+/* Home role CTAs — corporate outline, green fill on hover */
+.cta-role {
+  background: transparent;
+  color: var(--green);
+  border: 1px solid var(--green);
+  border-radius: 10px;
+  padding: 14px 32px;
+  font-size: 15px;
+  font-weight: 600;
+  font-family: 'Inter', sans-serif;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.cta-role:hover,
+.cta-role:focus-visible {
+  background: var(--green);
+  color: #ffffff;
+  border-color: var(--green);
+  box-shadow: 0 6px 24px rgba(63, 175, 143, 0.35);
+  transform: translateY(-1px);
+}
+[data-theme='light'] .cta-role:hover,
+[data-theme='light'] .cta-role:focus-visible {
+  box-shadow: 0 6px 24px rgba(31, 122, 108, 0.3);
+}
