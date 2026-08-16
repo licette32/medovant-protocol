@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { useWallet } from '@solana/wallet-adapter-react'
+import Admin from '@/pages/Admin'
 import Home from '@/pages/Home'
 import Dashboard from '@/pages/Dashboard'
 
@@ -15,6 +16,7 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<Home />} />
+        <Route path="/admin" element={<Admin />} />
         <Route
           path="/dashboard"
           element={
