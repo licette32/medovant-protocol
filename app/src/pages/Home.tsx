@@ -360,6 +360,21 @@ export default function Home() {
               {text}
             </span>
           ))}
+          <button
+            type="button"
+            onClick={() => navigate('/admin')}
+            style={{
+              fontSize: '11px',
+              color: 'var(--text3)',
+              border: 'none',
+              background: 'transparent',
+              padding: 0,
+              cursor: 'pointer',
+              fontFamily: 'Inter, sans-serif',
+            }}
+          >
+            Admin
+          </button>
         </footer>
       </div>
     </div>
