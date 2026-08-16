@@ -12,7 +12,8 @@ import { getEscrowVaultPDA, getMedicalAssetPDA, getTechnicianProfilePDA } from '
 import { toastAnchorTxError } from '@/utils/solanaTxError'
 import { getAssetDisplayName } from '@/utils/assetNames'
 import { truncatePubkey } from '@/utils/formatters'
-import { fetchHospitalAssets } from '@/utils/assetDiscovery'
+import { fetchAllAssets } from '@/utils/assetDiscovery'
+import PstPanel from '@/components/PstPanel'
 
 type Props = {
   program: Program | null
@@ -25,6 +26,7 @@ type AvailableJob = {
   id: string
   assetId: number
   asset: string
+  /** Owner hospital wallet (full base58) — comes from the on-chain asset, not the connected wallet. */
   hospital: string
   reward: string
 }
@@ -41,44 +43,40 @@ export default function TechnicianDashboard({ program, publicKey, onTxSuccess, a
   const { t, lang } = useLang()
   const [jobsCompleted, setJobsCompleted] = useState(0)
   const [totalEarnedLamports, setTotalEarnedLamports] = useState<string>('0')
-  const [assetIdInput, setAssetIdInput] = useState('1')
   const [availableJobs, setAvailableJobs] = useState<AvailableJob[]>([])
+  const [selectedJobId, setSelectedJobId] = useState('')
   const [jobsLoading, setJobsLoading] = useState(false)
   const [jobsError, setJobsError] = useState(false)
   const [loading, setLoading] = useState(false)
 
-  useEffect(() => {
+  const selectedJob = availableJobs.find((j) => j.id === selectedJobId) ?? null
+
+  const refreshProfile = useCallback(async () => {
     if (!program || !publicKey) {
       setJobsCompleted(0)
       setTotalEarnedLamports('0')
       return
     }
-    let cancelled = false
     const profilePk = getTechnicianProfilePDA(publicKey)
-    ;(async () => {
-      try {
-        const prof = await (
-          program.account as {
-            technicianProfile: {
-              fetch: (a: PublicKey) => Promise<{ jobsCompleted: number; totalEarned: BN }>
-            }
+    try {
+      const prof = await (
+        program.account as {
+          technicianProfile: {
+            fetch: (a: PublicKey) => Promise<{ jobsCompleted: number; totalEarned: BN }>
           }
-        ).technicianProfile.fetch(profilePk)
-        if (!cancelled) {
-          setJobsCompleted(prof.jobsCompleted)
-          setTotalEarnedLamports(prof.totalEarned.toString())
         }
-      } catch {
-        if (!cancelled) {
-          setJobsCompleted(0)
-          setTotalEarnedLamports('0')
-        }
-      }
-    })()
-    return () => {
-      cancelled = true
+      ).technicianProfile.fetch(profilePk)
+      setJobsCompleted(prof.jobsCompleted)
+      setTotalEarnedLamports(prof.totalEarned.toString())
+    } catch {
+      setJobsCompleted(0)
+      setTotalEarnedLamports('0')
     }
   }, [program, publicKey])
+
+  useEffect(() => {
+    void refreshProfile()
+  }, [refreshProfile])
 
   const fetchAvailableJobs = useCallback(async () => {
     if (!program || !publicKey) {
@@ -88,15 +86,15 @@ export default function TechnicianDashboard({ program, publicKey, onTxSuccess, a
     setJobsLoading(true)
     setJobsError(false)
     try {
-      const assets = await fetchHospitalAssets(program, publicKey)
+      const assets = await fetchAllAssets(program)
       setAvailableJobs(
         assets
           .filter((a) => a.status === 'Issue Reported')
           .map((a) => ({
-            id: String(a.id),
+            id: `${a.hospital}-${a.id}`,
             assetId: a.id,
             asset: a.name,
-            hospital: truncatePubkey(publicKey.toBase58()),
+            hospital: a.hospital ?? '',
             reward: `${lamportsToSolString(a.maintenanceReward)} SOL`,
           }))
       )
@@ -111,75 +109,76 @@ export default function TechnicianDashboard({ program, publicKey, onTxSuccess, a
     void fetchAvailableJobs()
   }, [fetchAvailableJobs])
 
-  const runCompleteMaintenance = useCallback(async () => {
-    if (!program || !publicKey) {
-      toast.error('Connect wallet first')
-      return
+  useEffect(() => {
+    if (availableJobs.length > 0 && !availableJobs.some((j) => j.id === selectedJobId)) {
+      setSelectedJobId(availableJobs[0].id)
     }
-    const id = parseInt(assetIdInput, 10)
-    if (Number.isNaN(id) || id < 0) {
-      toast.error('Invalid asset ID')
-      return
-    }
-    setLoading(true)
-    try {
-      const pda = getMedicalAssetPDA(publicKey, id)
-      const vault = getEscrowVaultPDA(pda)
-      const techProfile = getTechnicianProfilePDA(publicKey)
+  }, [availableJobs, selectedJobId])
+
+  const runCompleteMaintenance = useCallback(
+    async (job: AvailableJob | null) => {
+      if (!program || !publicKey) {
+        toast.error('Connect wallet first')
+        return
+      }
+      if (!job) {
+        toast.error(t('techSelectJobRequired'))
+        return
+      }
+      setLoading(true)
       try {
-        await (
-          program.account as { technicianProfile: { fetch: (a: PublicKey) => Promise<unknown> } }
-        ).technicianProfile.fetch(techProfile)
-      } catch {
-        const regSig = await program
-          .methods.registerTechnician()
+        const hospital = new PublicKey(job.hospital)
+        const pda = getMedicalAssetPDA(hospital, job.assetId)
+        const vault = getEscrowVaultPDA(pda)
+        const techProfile = getTechnicianProfilePDA(publicKey)
+        if (hospital.toBase58() !== publicKey.toBase58()) {
+          toast.error(t('dualSigningPending'))
+          return
+        }
+        try {
+          await (
+            program.account as { technicianProfile: { fetch: (a: PublicKey) => Promise<unknown> } }
+          ).technicianProfile.fetch(techProfile)
+        } catch {
+          const regSig = await program
+            .methods.registerTechnician()
+            .accounts({
+              technician: publicKey,
+              technicianProfile: techProfile,
+              systemProgram: SystemProgram.programId,
+            })
+            .rpc()
+          showTxToast(regSig)
+          onTxSuccess(regSig, 'Technician profile registered', 'ok')
+        }
+        const sig = await program
+          .methods.completeMaintenance()
           .accounts({
+            hospital,
             technician: publicKey,
+            medicalAsset: pda,
+            escrowVault: vault,
             technicianProfile: techProfile,
             systemProgram: SystemProgram.programId,
           })
           .rpc()
-        showTxToast(regSig)
-        onTxSuccess(regSig, 'Technician profile registered', 'ok')
+        showTxToast(sig)
+        const doneLabel = getAssetDisplayName(job.hospital, job.assetId)
+        onTxSuccess(
+          sig,
+          lang === 'es' ? `Mantenimiento completado — ${doneLabel}` : `Maintenance completed — ${doneLabel}`,
+          'fix'
+        )
+        await refreshProfile()
+        await fetchAvailableJobs()
+      } catch (e: unknown) {
+        await toastAnchorTxError(program, e)
+      } finally {
+        setLoading(false)
       }
-      const sig = await program
-        .methods.completeMaintenance()
-        .accounts({
-          hospital: publicKey,
-          technician: publicKey,
-          medicalAsset: pda,
-          escrowVault: vault,
-          technicianProfile: techProfile,
-          systemProgram: SystemProgram.programId,
-        })
-        .rpc()
-      showTxToast(sig)
-      const doneLabel = getAssetDisplayName(publicKey.toBase58(), id)
-      onTxSuccess(
-        sig,
-        lang === 'es' ? `Mantenimiento completado — ${doneLabel}` : `Maintenance completed — ${doneLabel}`,
-        'fix'
-      )
-      try {
-        const prof = await (
-          program.account as {
-            technicianProfile: {
-              fetch: (a: PublicKey) => Promise<{ jobsCompleted: number; totalEarned: BN }>
-            }
-          }
-        ).technicianProfile.fetch(techProfile)
-        setJobsCompleted(prof.jobsCompleted)
-        setTotalEarnedLamports(prof.totalEarned.toString())
-      } catch {
-        /* profile refetch optional */
-      }
-      await fetchAvailableJobs()
-    } catch (e: unknown) {
-      await toastAnchorTxError(program, e)
-    } finally {
-      setLoading(false)
-    }
-  }, [program, publicKey, assetIdInput, onTxSuccess, lang, fetchAvailableJobs])
+    },
+    [program, publicKey, onTxSuccess, lang, fetchAvailableJobs, refreshProfile, t]
+  )
 
   const earningsItems = activity.filter((a) => a.type === 'fix')
   const progressPct = Math.min(100, (jobsCompleted / 10) * 100)
@@ -368,7 +367,9 @@ export default function TechnicianDashboard({ program, publicKey, onTxSuccess, a
                       #{row.assetId}
                     </div>
                   </td>
-                  <td style={{ padding: '12px 16px', color: 'var(--text2)' }}>{row.hospital}</td>
+                  <td style={{ padding: '12px 16px', color: 'var(--text2)', fontFamily: 'DM Mono, monospace', fontSize: '13px' }}>
+                    {row.hospital ? truncatePubkey(row.hospital) : '—'}
+                  </td>
                   <td style={{ padding: '12px 16px', fontFamily: 'DM Mono, monospace', color: 'var(--green)' }}>
                     {row.reward}
                   </td>
@@ -390,7 +391,8 @@ export default function TechnicianDashboard({ program, publicKey, onTxSuccess, a
                   <td style={{ padding: '12px 16px' }}>
                     <button
                       type="button"
-                      onClick={() => setAssetIdInput(String(row.assetId))}
+                      disabled={loading}
+                      onClick={() => void runCompleteMaintenance(row)}
                       style={{
                         background: 'var(--cyan-d)',
                         border: '1px solid var(--cyan-b)',
@@ -399,10 +401,11 @@ export default function TechnicianDashboard({ program, publicKey, onTxSuccess, a
                         padding: '4px 14px',
                         fontSize: '13px',
                         fontWeight: 500,
-                        cursor: 'pointer',
+                        cursor: loading ? 'wait' : 'pointer',
+                        opacity: loading ? 0.7 : 1,
                       }}
                     >
-                      {t('btnComplete')}
+                      {loading ? t('submitting') : t('btnComplete')}
                     </button>
                   </td>
                 </tr>
@@ -410,11 +413,6 @@ export default function TechnicianDashboard({ program, publicKey, onTxSuccess, a
             </tbody>
           </table>
         </div>
-        {availableJobs.length > 0 && (
-          <p style={{ margin: 0, padding: '12px 20px', fontSize: '13px', fontStyle: 'italic', color: 'var(--text3)' }}>
-            {t('techAssetIdRepairHint')}
-          </p>
-        )}
       </section>
 
       <section
@@ -427,34 +425,39 @@ export default function TechnicianDashboard({ program, publicKey, onTxSuccess, a
         }}
       >
         <h3 style={{ margin: 0, fontSize: '14px', fontWeight: 600, color: 'var(--text)' }}>{t('completeMaintenance')}</h3>
-        <p style={{ margin: '6px 0 8px', fontSize: '13px', color: 'var(--text2)' }}>{t('techCompleteDesc')}</p>
-        <p style={{ margin: '0 0 14px', fontSize: '13px', color: 'var(--text3)' }}>{t('techAssetIdRepairHint')}</p>
+        <p style={{ margin: '6px 0 14px', fontSize: '13px', color: 'var(--text2)' }}>{t('techCompleteDesc')}</p>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'flex-end' }}>
-          <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-            <span style={{ fontSize: '13px', color: 'var(--text2)' }}>{t('techAssetIdRepair')}</span>
-            <input
-              id="tech-asset-input"
-              type="number"
-              min={0}
-              value={assetIdInput}
-              onChange={(e) => setAssetIdInput(e.target.value)}
-              placeholder={t('techAssetIdRepairPlaceholder')}
+          <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: '1 1 260px' }}>
+            <span style={{ fontSize: '13px', color: 'var(--text2)' }}>{t('techSelectJob')}</span>
+            <select
+              value={selectedJobId}
+              onChange={(e) => setSelectedJobId(e.target.value)}
+              disabled={availableJobs.length === 0 || loading}
               style={{
                 background: 'var(--surface2)',
                 border: '1px solid var(--border)',
                 borderRadius: '6px',
                 padding: '8px 12px',
                 color: 'var(--text)',
-                fontFamily: 'DM Mono, monospace',
+                fontFamily: 'Inter, system-ui, sans-serif',
                 fontSize: '13px',
-                width: '160px',
+                width: '100%',
               }}
-            />
+            >
+              {availableJobs.length === 0 && (
+                <option value="">{t('techNoJobs')}</option>
+              )}
+              {availableJobs.map((job) => (
+                <option key={job.id} value={job.id}>
+                  #{job.assetId} — {job.asset} · {job.hospital ? truncatePubkey(job.hospital) : '—'}
+                </option>
+              ))}
+            </select>
           </label>
           <button
             type="button"
-            disabled={loading}
-            onClick={() => void runCompleteMaintenance()}
+            disabled={loading || !selectedJob}
+            onClick={() => void runCompleteMaintenance(selectedJob)}
             style={{
               background: 'var(--cyan-d)',
               border: '1px solid var(--cyan-b)',
@@ -464,13 +467,24 @@ export default function TechnicianDashboard({ program, publicKey, onTxSuccess, a
               fontSize: '13px',
               fontWeight: 600,
               cursor: loading ? 'wait' : 'pointer',
-              opacity: loading ? 0.7 : 1,
+              opacity: loading || !selectedJob ? 0.7 : 1,
             }}
           >
             {loading ? t('submitting') : t('completeAndEarn')}
           </button>
         </div>
       </section>
+
+      <PstPanel
+        program={program}
+        publicKey={publicKey}
+        mode="technician"
+        onTxSuccess={onTxSuccess}
+        onDone={async () => {
+          await fetchAvailableJobs()
+          await refreshProfile()
+        }}
+      />
 
       <ActivityFeed items={earningsItems} headerTitle={t('earningsHistory')} headerDesc={null} />
     </div>

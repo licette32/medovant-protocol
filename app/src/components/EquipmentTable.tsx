@@ -13,6 +13,7 @@ import { getEscrowVaultPDA, getMedicalAssetPDA, getTechnicianProfilePDA } from '
 import { showTxToast } from '@/components/Toast'
 import { toastAnchorTxError } from '@/utils/solanaTxError'
 import { fetchHospitalAssets } from '@/utils/assetDiscovery'
+import PstPanel from '@/components/PstPanel'
 
 export type OnTxSuccess = (sig: string, message: string, type: ActivityItem['type']) => void
 
@@ -26,6 +27,8 @@ export interface OnChainAsset {
   maintenanceReward: number
   failureCount: number
   lastMaintenance: number
+  /** Owner hospital wallet (base58). Set by assetDiscovery fetchers. */
+  hospital?: string
 }
 
 type Props = {
@@ -749,6 +752,18 @@ export default function EquipmentTable({
                     {modalBusy ? t('submitting') : t('confirmRelease')}
                   </button>
                 </div>
+                <PstPanel
+                  program={program}
+                  publicKey={publicKey}
+                  mode="hospital"
+                  asset={{
+                    id: activeModal.assetId,
+                    name: completeDisplayName,
+                    maintenanceReward: activeModal.maintenanceReward ?? 0,
+                  }}
+                  onTxSuccess={onTxSuccess}
+                  onDone={refreshAssets}
+                />
               </div>
             )}
 
