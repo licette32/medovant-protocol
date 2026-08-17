@@ -13,11 +13,29 @@ function lamportsToNum(v: LamportsLike): number {
 }
 
 type RawMedicalAsset = {
+  hospital: PublicKey
   assetId: { toString: () => string }
   status: Record<string, unknown>
   maintenanceReward: LamportsLike
   failureCount: number
   lastMaintenance: LamportsLike
+}
+
+function mapRawAsset(pda: PublicKey, account: RawMedicalAsset): OnChainAsset {
+  const id = Number(account.assetId.toString())
+  const hospital = account.hospital.toBase58()
+  const meta = getAssetMeta(hospital, id)
+  return {
+    id,
+    pda,
+    name: meta?.name ?? `Asset #${id}`,
+    location: meta?.location,
+    status: mapAssetStatus(account.status),
+    maintenanceReward: lamportsToNum(account.maintenanceReward),
+    failureCount: account.failureCount,
+    lastMaintenance: lamportsToNum(account.lastMaintenance),
+    hospital,
+  }
 }
 
 /**
@@ -41,19 +59,27 @@ export async function fetchHospitalAssets(
   ).medicalAsset.all([{ memcmp: { offset: 8, bytes: hospitalPubkey.toBase58() } }])
 
   return accounts
-    .map(({ publicKey: pda, account }) => {
-      const id = Number(account.assetId.toString())
-      const meta = getAssetMeta(hospitalPubkey.toBase58(), id)
-      return {
-        id,
-        pda,
-        name: meta?.name ?? `Asset #${id}`,
-        location: meta?.location,
-        status: mapAssetStatus(account.status),
-        maintenanceReward: lamportsToNum(account.maintenanceReward),
-        failureCount: account.failureCount,
-        lastMaintenance: lamportsToNum(account.lastMaintenance),
+    .map(({ publicKey: pda, account }) => mapRawAsset(pda, account))
+    .sort((a, b) => a.id - b.id)
+}
+
+/**
+ * Discovers every MedicalAsset PDA across all hospitals (no owner filter),
+ * used by the technician flow so jobs from any hospital surface. Callers
+ * filter by status themselves since no status memcmp exists in the IDL.
+ */
+export async function fetchAllAssets(program: Program): Promise<OnChainAsset[]> {
+  const accounts = await (
+    program.account as unknown as {
+      medicalAsset: {
+        all: (filters?: { memcmp: { offset: number; bytes: string } }[]) => Promise<
+          { publicKey: PublicKey; account: RawMedicalAsset }[]
+        >
       }
-    })
+    }
+  ).medicalAsset.all([])
+
+  return accounts
+    .map(({ publicKey: pda, account }) => mapRawAsset(pda, account))
     .sort((a, b) => a.id - b.id)
 }
