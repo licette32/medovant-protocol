@@ -7,7 +7,7 @@ import { toast } from 'sonner'
 import type { ActivityItem } from '@/components/ActivityFeed'
 import { useLang } from '@/i18n/LangContext'
 import type { Lang, TranslationKey } from '@/i18n/translations'
-import { getAssetDisplayName, saveAssetMeta } from '@/utils/assetNames'
+import { getAssetDisplayName, upsertAssetMeta } from '@/utils/assetMetadata'
 import { truncatePubkey } from '@/utils/formatters'
 import { getEscrowVaultPDA, getMedicalAssetPDA, getTechnicianProfilePDA } from '@/utils/pdas'
 import { showTxToast } from '@/components/Toast'
@@ -184,10 +184,6 @@ export default function EquipmentTable({
     }
     setModalBusy(true)
     try {
-      saveAssetMeta(publicKey.toBase58(), assetId, {
-        name: equipmentName,
-        location: registerLocation.trim() || undefined,
-      })
       const pda = getMedicalAssetPDA(publicKey, assetId)
       const tx = await program.methods
         .initializeAsset(new BN(assetId))
@@ -198,6 +194,10 @@ export default function EquipmentTable({
         })
         .rpc()
       showTxToast(tx)
+      await upsertAssetMeta(publicKey.toBase58(), assetId, {
+        name: equipmentName,
+        location: registerLocation.trim() || undefined,
+      })
       onTxSuccess(tx, activityAfterRegister(lang, equipmentName, assetId), 'tx')
       setRegisterEquipmentName('')
       setRegisterLocation('')
