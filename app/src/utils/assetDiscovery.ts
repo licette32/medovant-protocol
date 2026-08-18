@@ -1,7 +1,7 @@
 import type { Program } from '@coral-xyz/anchor'
 import type { PublicKey } from '@solana/web3.js'
 import type { OnChainAsset } from '@/components/EquipmentTable'
-import { getAssetMeta } from '@/utils/assetNames'
+import { getAssetMeta, hydrateAssetMetadata } from '@/utils/assetMetadata'
 import { mapAssetStatus } from '@/utils/formatters'
 
 type LamportsLike = { toNumber?: () => number; toString?: () => string } | number
@@ -58,6 +58,8 @@ export async function fetchHospitalAssets(
     }
   ).medicalAsset.all([{ memcmp: { offset: 8, bytes: hospitalPubkey.toBase58() } }])
 
+  await hydrateAssetMetadata([hospitalPubkey.toBase58()])
+
   return accounts
     .map(({ publicKey: pda, account }) => mapRawAsset(pda, account))
     .sort((a, b) => a.id - b.id)
@@ -78,6 +80,9 @@ export async function fetchAllAssets(program: Program): Promise<OnChainAsset[]> 
       }
     }
   ).medicalAsset.all([])
+
+  const hospitals = [...new Set(accounts.map((a) => a.account.hospital.toBase58()))]
+  await hydrateAssetMetadata(hospitals)
 
   return accounts
     .map(({ publicKey: pda, account }) => mapRawAsset(pda, account))
