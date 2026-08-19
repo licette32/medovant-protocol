@@ -1,0 +1,89 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  SOLANA_VERSION: "2.3.0"
+  ANCHOR_VERSION: "0.32.1"
+
+jobs:
+  anchor-test:
+    name: Anchor tests (Solana program)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache Solana CLI
+        id: cache-solana
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/solana
+          key: ${{ runner.os }}-solana-${{ env.SOLANA_VERSION }}
+
+      - name: Install Solana CLI
+        if: steps.cache-solana.outputs.cache-hit != 'true'
+        run: sh -c "$(curl -sSfL https://release.anza.xyz/v${SOLANA_VERSION}/install)"
+
+      - name: Export Solana CLI on PATH
+        run: echo "$HOME/.local/share/solana/install/active_release/bin" >> "$GITHUB_PATH"
+
+      - name: Cache Rust crates
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install Anchor CLI (avm)
+        run: |
+          cargo install --git https://github.com/coral-xyz/anchor avm --force
+          echo "$HOME/.avm/bin" >> "$GITHUB_PATH"
+          avm install ${{ env.ANCHOR_VERSION }}
+          avm use ${{ env.ANCHOR_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Enable Yarn (corepack)
+        run: corepack enable
+
+      - name: Install JS test dependencies
+        run: npm install
+
+      - name: Bootstrap provider wallet
+        run: |
+          mkdir -p "$HOME/.config/solana"
+          solana-keygen new --force --silent --no-bip39-passphrase \
+            --outfile "$HOME/.config/solana/id.json"
+
+      - name: Run anchor test
+        run: anchor test
+
+  frontend-check:
+    name: Frontend typecheck & build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Build
+        run: npm run build
