@@ -302,4 +302,156 @@ describe("medovant", () => {
     );
     expect(hospitalBalanceAfter).to.be.greaterThan(hospitalBalanceBefore);
   });
+
+  describe("medovant edge cases (#7)", () => {
+    const assetId2 = new anchor.BN(2);
+    const unregisteredTech = Keypair.generate();
+    const rogueTech = Keypair.generate();
+
+    let asset2Pda: PublicKey;
+    let asset2Vault: PublicKey;
+    let unregisteredProfilePda: PublicKey;
+
+    before(async () => {
+      for (const kp of [unregisteredTech, rogueTech]) {
+        const sig = await provider.connection.requestAirdrop(
+          kp.publicKey,
+          LAMPORTS_PER_SOL
+        );
+        await provider.connection.confirmTransaction(sig);
+      }
+
+      [asset2Pda] = PublicKey.findProgramAddressSync(
+        [
+          Buffer.from("equipment"),
+          hospital.publicKey.toBuffer(),
+          assetId2.toArrayLike(Buffer, "le", 8),
+        ],
+        program.programId
+      );
+      [asset2Vault] = PublicKey.findProgramAddressSync(
+        [Buffer.from("vault"), asset2Pda.toBuffer()],
+        program.programId
+      );
+      [unregisteredProfilePda] = PublicKey.findProgramAddressSync(
+        [Buffer.from("technician"), unregisteredTech.publicKey.toBuffer()],
+        program.programId
+      );
+
+      await program.methods
+        .initializeAsset(assetId2)
+        .accounts({
+          hospital: hospital.publicKey,
+          medicalAsset: asset2Pda,
+          systemProgram: SystemProgram.programId,
+        })
+        .signers([hospital])
+        .rpc();
+
+      await program.methods
+        .reportIssue(new anchor.BN(REWARD_LAMPORTS))
+        .accounts({
+          hospital: hospital.publicKey,
+          medicalAsset: asset2Pda,
+          escrowVault: asset2Vault,
+          systemProgram: SystemProgram.programId,
+        })
+        .signers([hospital])
+        .rpc();
+    });
+
+    function extractMessage(e: unknown): string {
+      return e && typeof e === "object" && "message" in e
+        ? String((e as { message: string }).message)
+        : "";
+    }
+
+    function expectFailure(promise: Promise<unknown>, patterns: string[]): Promise<void> {
+      return promise.then(
+        () => {
+          expect.fail("Se esperaba que la transacción fallara");
+        },
+        (e: unknown) => {
+          const msg = extractMessage(e);
+          expect(msg.length).to.be.greaterThan(0);
+          expect(msg.toLowerCase()).to.satisfy((m: string) =>
+            patterns.some((p) => m.includes(p.toLowerCase()))
+          );
+        }
+      );
+    }
+
+    it("register_technician twice falla (PDA ya inicializado)", async () => {
+      await expectFailure(
+        program.methods
+          .registerTechnician()
+          .accounts({
+            technician: technician.publicKey,
+            technicianProfile: technicianProfilePda,
+            systemProgram: SystemProgram.programId,
+          })
+          .signers([technician])
+          .rpc(),
+        ["already", "discriminator", "in use", "0x1770"]
+      );
+    });
+
+    it("complete_maintenance con técnico sin registrar falla", async () => {
+      await expectFailure(
+        program.methods
+          .completeMaintenance()
+          .accounts({
+            hospital: hospital.publicKey,
+            technician: unregisteredTech.publicKey,
+            medicalAsset: asset2Pda,
+            escrowVault: asset2Vault,
+            technicianProfile: unregisteredProfilePda,
+            systemProgram: SystemProgram.programId,
+          })
+          .signers([hospital, unregisteredTech])
+          .rpc(),
+        ["not found", "not exist", "account"]
+      );
+    });
+
+    it("complete_maintenance con firmante técnico distinto falla", async () => {
+      await expectFailure(
+        program.methods
+          .completeMaintenance()
+          .accounts({
+            hospital: hospital.publicKey,
+            technician: rogueTech.publicKey,
+            medicalAsset: asset2Pda,
+            escrowVault: asset2Vault,
+            technicianProfile: technicianProfilePda,
+            systemProgram: SystemProgram.programId,
+          })
+          .signers([hospital, rogueTech])
+          .rpc(),
+        ["seeds", "constraint", "has one", "technicianprofile"]
+      );
+    });
+
+    it("decommission_asset con SOL en vault lo permite (SOL queda huérfano)", async () => {
+      const vaultBalanceBefore = await provider.connection.getBalance(asset2Vault);
+      expect(vaultBalanceBefore).to.be.greaterThan(0);
+
+      await program.methods
+        .decommissionAsset()
+        .accounts({
+          hospital: hospital.publicKey,
+          medicalAsset: asset2Pda,
+        })
+        .signers([hospital])
+        .rpc();
+
+      const assetInfo = await provider.connection.getAccountInfo(asset2Pda);
+      expect(assetInfo).to.be.null;
+
+      // Comportamiento actual: decommission no revisa el vault, el escrow
+      // queda retenido en la cuenta system-owned sin forma de liberarlo.
+      const vaultBalanceAfter = await provider.connection.getBalance(asset2Vault);
+      expect(vaultBalanceAfter).to.be.greaterThan(0);
+    });
+  });
 });
