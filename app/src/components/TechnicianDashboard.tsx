@@ -13,7 +13,11 @@ import { toastAnchorTxError } from '@/utils/solanaTxError'
 import { getAssetDisplayName } from '@/utils/assetMetadata'
 import { truncatePubkey } from '@/utils/formatters'
 import { fetchAllAssets } from '@/utils/assetDiscovery'
+import { isEvidenceConfigured } from '@/utils/evidence'
+import type { MaintenanceEvidence } from '@/utils/evidence'
+import { attachEvidenceTxSignature } from '@/utils/evidence'
 import PstPanel from '@/components/PstPanel'
+import EvidenceUploader from '@/components/EvidenceUploader'
 
 type Props = {
   program: Program | null
@@ -48,8 +52,14 @@ export default function TechnicianDashboard({ program, publicKey, onTxSuccess, a
   const [jobsLoading, setJobsLoading] = useState(false)
   const [jobsError, setJobsError] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [uploadedEvidence, setUploadedEvidence] = useState<MaintenanceEvidence | null>(null)
 
   const selectedJob = availableJobs.find((j) => j.id === selectedJobId) ?? null
+  const evidenceConfigured = isEvidenceConfigured()
+
+  const selectedAssetPda = selectedJob
+    ? getMedicalAssetPDA(new PublicKey(selectedJob.hospital), selectedJob.assetId).toBase58()
+    : null
 
   const refreshProfile = useCallback(async () => {
     if (!program || !publicKey) {
@@ -115,6 +125,10 @@ export default function TechnicianDashboard({ program, publicKey, onTxSuccess, a
     }
   }, [availableJobs, selectedJobId])
 
+  useEffect(() => {
+    setUploadedEvidence(null)
+  }, [selectedJobId])
+
   const runCompleteMaintenance = useCallback(
     async (job: AvailableJob | null) => {
       if (!program || !publicKey) {
@@ -169,6 +183,10 @@ export default function TechnicianDashboard({ program, publicKey, onTxSuccess, a
           lang === 'es' ? `Mantenimiento completado — ${doneLabel}` : `Maintenance completed — ${doneLabel}`,
           'fix'
         )
+        if (uploadedEvidence) {
+          await attachEvidenceTxSignature(uploadedEvidence.id, sig)
+          setUploadedEvidence(null)
+        }
         await refreshProfile()
         await fetchAvailableJobs()
       } catch (e: unknown) {
@@ -177,7 +195,7 @@ export default function TechnicianDashboard({ program, publicKey, onTxSuccess, a
         setLoading(false)
       }
     },
-    [program, publicKey, onTxSuccess, lang, fetchAvailableJobs, refreshProfile, t]
+    [program, publicKey, onTxSuccess, lang, fetchAvailableJobs, refreshProfile, t, uploadedEvidence]
   )
 
   const earningsItems = activity.filter((a) => a.type === 'fix')
@@ -426,6 +444,17 @@ export default function TechnicianDashboard({ program, publicKey, onTxSuccess, a
       >
         <h3 style={{ margin: 0, fontSize: '14px', fontWeight: 600, color: 'var(--text)' }}>{t('completeMaintenance')}</h3>
         <p style={{ margin: '6px 0 14px', fontSize: '13px', color: 'var(--text2)' }}>{t('techCompleteDesc')}</p>
+        {evidenceConfigured && (
+          <div style={{ marginBottom: '12px' }}>
+            <EvidenceUploader
+              assetPda={selectedAssetPda ?? ''}
+              hospital={selectedJob?.hospital ?? ''}
+              technician={publicKey ? publicKey.toBase58() : ''}
+              disabled={!selectedJob || loading}
+              onUploaded={(evidence) => setUploadedEvidence(evidence)}
+            />
+          </div>
+        )}
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'flex-end' }}>
           <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: '1 1 260px' }}>
             <span style={{ fontSize: '13px', color: 'var(--text2)' }}>{t('techSelectJob')}</span>

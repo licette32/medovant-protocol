@@ -221,6 +221,15 @@ export const translations = {
     demoJobAsset1: 'MRI Scanner — Room 3',
     demoJobAsset2: 'ICU Ventilator — Floor 4',
     equipmentNameRequired: 'Equipment name is required.',
+    attachEvidence: 'Attach evidence',
+    evidenceUploading: 'Uploading evidence…',
+    evidenceHint: 'Photo or PDF · max 5 MB',
+    evidenceRemove: 'Remove',
+    evidenceTooLarge: 'File exceeds the 5 MB limit',
+    evidenceInvalidType: 'Only JPG, PNG, WebP or PDF files are allowed',
+    evidenceLoading: 'Loading evidence…',
+    evidenceNone: 'No evidence attached yet',
+    evidenceView: 'View evidence',
   },
   es: {
     // Navigation
@@ -444,6 +453,15 @@ export const translations = {
     demoJobAsset1: 'Resonador MRI — Sala 3',
     demoJobAsset2: 'Ventilador UCI — Piso 4',
     equipmentNameRequired: 'El nombre del equipo es obligatorio.',
+    attachEvidence: 'Adjuntar evidencia',
+    evidenceUploading: 'Subiendo evidencia…',
+    evidenceHint: 'Foto o PDF · máx. 5 MB',
+    evidenceRemove: 'Quitar',
+    evidenceTooLarge: 'El archivo supera el límite de 5 MB',
+    evidenceInvalidType: 'Solo se permiten archivos JPG, PNG, WebP o PDF',
+    evidenceLoading: 'Cargando evidencia…',
+    evidenceNone: 'Aún no hay evidencia adjunta',
+    evidenceView: 'Ver evidencia',
   },
 } as const
 
