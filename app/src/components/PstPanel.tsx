@@ -9,6 +9,9 @@ import type { OnTxSuccess } from '@/components/EquipmentTable'
 import { getTechnicianProfilePDA } from '@/utils/pdas'
 import { toastAnchorTxError } from '@/utils/solanaTxError'
 import { truncatePubkey } from '@/utils/formatters'
+import { isEvidenceConfigured, attachEvidenceTxSignature } from '@/utils/evidence'
+import type { MaintenanceEvidence } from '@/utils/evidence'
+import EvidenceUploader from '@/components/EvidenceUploader'
 import {
   buildPartialTransaction,
   formatPstExpiry,
@@ -85,6 +88,9 @@ export default function PstPanel({ program, publicKey, mode, asset, onTxSuccess,
   const [verified, setVerified] = useState<PstVerification | null>(null)
   const [verifiedPayload, setVerifiedPayload] = useState<PstPayload | null>(null)
   const [escrowLamports, setEscrowLamports] = useState(0)
+  const [uploadedEvidence, setUploadedEvidence] = useState<MaintenanceEvidence | null>(null)
+
+  const evidenceConfigured = isEvidenceConfigured()
 
   const countdown = usePstCountdown(
     mode === 'hospital' ? generatedPayload : verifiedPayload,
@@ -146,6 +152,7 @@ export default function PstPanel({ program, publicKey, mode, asset, onTxSuccess,
       const result = verifyPstPayload(parsed, publicKey)
       setVerified(result)
       setVerifiedPayload(parsed)
+      setUploadedEvidence(null)
       try {
         const acc = await (
           program.account as {
@@ -201,6 +208,10 @@ export default function PstPanel({ program, publicKey, mode, asset, onTxSuccess,
       }
       const sig = await signAndSendPst(program, verifiedPayload, verified)
       showTxToast(sig)
+      if (uploadedEvidence) {
+        await attachEvidenceTxSignature(uploadedEvidence.id, sig)
+        setUploadedEvidence(null)
+      }
       onTxSuccess(sig, t('pstSignedToast'), 'fix')
       setVerified(null)
       setVerifiedPayload(null)
@@ -422,6 +433,17 @@ export default function PstPanel({ program, publicKey, mode, asset, onTxSuccess,
                   </ul>
                 )}
               </div>
+              {evidenceConfigured && verifiedPayload && verified && (
+                <div style={{ marginTop: '10px' }}>
+                  <EvidenceUploader
+                    assetPda={verified.assetPda.toBase58()}
+                    hospital={verifiedPayload.hospital}
+                    technician={publicKey ? publicKey.toBase58() : ''}
+                    disabled={busy !== 'idle'}
+                    onUploaded={(evidence) => setUploadedEvidence(evidence)}
+                  />
+                </div>
+              )}
               <button
                 type="button"
                 disabled={!verified.ok || expired || busy !== 'idle'}

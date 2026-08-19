@@ -14,6 +14,7 @@ import { showTxToast } from '@/components/Toast'
 import { toastAnchorTxError } from '@/utils/solanaTxError'
 import { fetchHospitalAssets } from '@/utils/assetDiscovery'
 import PstPanel from '@/components/PstPanel'
+import EvidenceList from '@/components/EvidenceList'
 
 export type OnTxSuccess = (sig: string, message: string, type: ActivityItem['type']) => void
 
@@ -398,6 +399,9 @@ export default function EquipmentTable({
         ? `Asset #${completeAssetId}`
         : ''
 
+  const completeAssetPda =
+    completeAssetId != null && publicKey ? getMedicalAssetPDA(publicKey, completeAssetId).toBase58() : undefined
+
   const decommissionAssetId = activeModal?.type === 'decommission' ? activeModal.assetId : undefined
   const decommissionDisplayName =
     decommissionAssetId != null && publicKey
@@ -739,6 +743,11 @@ export default function EquipmentTable({
                 <div className="mt-3 rounded-md border border-[color:var(--amber-b)] bg-[var(--amber-d)] px-3 py-2 text-[13px] text-[color:var(--amber)]">
                   {t('techNeedsSol')}
                 </div>
+                {completeAssetPda && (
+                  <div className="mt-3">
+                    <EvidenceList assetPda={completeAssetPda} />
+                  </div>
+                )}
                 <div className="mt-6 flex justify-end gap-2">
                   <button type="button" disabled={modalBusy} onClick={closeModal} className="rounded-md border border-med px-4 py-2 text-sm text-tsec">
                     {t('cancel')}
