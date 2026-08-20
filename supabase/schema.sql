@@ -49,13 +49,20 @@ create index if not exists maintenance_events_tech_idx on public.maintenance_eve
 
 alter table public.maintenance_events enable row level security;
 
+-- Anon reads only see rows tied to a verified on-chain transaction (TD-08).
+-- Unverified rows (legacy) are invisible to the hospital review UI.
 drop policy if exists "maintenance_events_select" on public.maintenance_events;
-create policy "maintenance_events_select" on public.maintenance_events for select using (true);
+create policy "maintenance_events_select" on public.maintenance_events
+  for select using (tx_signature is not null);
 
-drop policy if exists "maintenance_events_insert" on public.maintenance_events;
-create policy "maintenance_events_insert" on public.maintenance_events for insert with check (true);
+-- No anon insert/update policy on purpose (TD-08): the anon key ships in the
+-- frontend bundle, so any client could insert rows for arbitrary asset_pda /
+-- technician. Writes are only allowed through the `evidence` Edge Function,
+-- which verifies tx_signature against the Solana RPC before inserting with the
+-- service role (bypasses RLS). The row is created AFTER the maintenance tx,
+-- so there is no "pending" unverified state an attacker could leave behind.
 
--- Evidence uploads live in a public storage bucket. Public reads allow the
+-- Evidence files live in a public storage bucket. Public reads allow the
 -- hospital to preview the attachment without auth; the hash + tx_signature
 -- columns keep the verification trail on the table itself.
 insert into storage.buckets (id, name, public)
@@ -67,7 +74,9 @@ create policy "evidence_storage_read"
   on storage.objects for select
   using (bucket_id = 'evidence');
 
+-- Storage writes are closed to anon too: files are uploaded by the Edge
+-- Function with the service role after tx verification (TD-08).
 drop policy if exists "evidence_storage_insert" on storage.objects;
 create policy "evidence_storage_insert"
   on storage.objects for insert
-  with check (bucket_id = 'evidence');
+  with check (false);

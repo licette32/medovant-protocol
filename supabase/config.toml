@@ -1,0 +1,8 @@
+# Supabase project configuration. Adjust project_id to match your linked
+# project (`supabase link --project-ref <ref>`).
+project_id = "ofvvckgmaumkukvlfimf"
+
+[functions.evidence]
+# The function does its own tx verification; the anon/regular JWTs are not
+# used to authorize writes (service role does the insert).
+verify_jwt = false

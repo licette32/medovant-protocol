@@ -9,8 +9,7 @@ import type { OnTxSuccess } from '@/components/EquipmentTable'
 import { getTechnicianProfilePDA } from '@/utils/pdas'
 import { toastAnchorTxError } from '@/utils/solanaTxError'
 import { truncatePubkey } from '@/utils/formatters'
-import { isEvidenceConfigured, attachEvidenceTxSignature } from '@/utils/evidence'
-import type { MaintenanceEvidence } from '@/utils/evidence'
+import { isEvidenceConfigured } from '@/utils/evidence'
 import EvidenceUploader from '@/components/EvidenceUploader'
 import {
   buildPartialTransaction,
@@ -88,7 +87,7 @@ export default function PstPanel({ program, publicKey, mode, asset, onTxSuccess,
   const [verified, setVerified] = useState<PstVerification | null>(null)
   const [verifiedPayload, setVerifiedPayload] = useState<PstPayload | null>(null)
   const [escrowLamports, setEscrowLamports] = useState(0)
-  const [uploadedEvidence, setUploadedEvidence] = useState<MaintenanceEvidence | null>(null)
+  const [completeSig, setCompleteSig] = useState<string | null>(null)
 
   const evidenceConfigured = isEvidenceConfigured()
 
@@ -152,7 +151,7 @@ export default function PstPanel({ program, publicKey, mode, asset, onTxSuccess,
       const result = verifyPstPayload(parsed, publicKey)
       setVerified(result)
       setVerifiedPayload(parsed)
-      setUploadedEvidence(null)
+      setCompleteSig(null)
       try {
         const acc = await (
           program.account as {
@@ -208,10 +207,7 @@ export default function PstPanel({ program, publicKey, mode, asset, onTxSuccess,
       }
       const sig = await signAndSendPst(program, verifiedPayload, verified)
       showTxToast(sig)
-      if (uploadedEvidence) {
-        await attachEvidenceTxSignature(uploadedEvidence.id, sig)
-        setUploadedEvidence(null)
-      }
+      setCompleteSig(sig)
       onTxSuccess(sig, t('pstSignedToast'), 'fix')
       setVerified(null)
       setVerifiedPayload(null)
@@ -440,7 +436,8 @@ export default function PstPanel({ program, publicKey, mode, asset, onTxSuccess,
                     hospital={verifiedPayload.hospital}
                     technician={publicKey ? publicKey.toBase58() : ''}
                     disabled={busy !== 'idle'}
-                    onUploaded={(evidence) => setUploadedEvidence(evidence)}
+                    txSignature={completeSig}
+                    onUploaded={() => toast.success(t('evidenceUploaded'))}
                   />
                 </div>
               )}

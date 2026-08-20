@@ -226,6 +226,7 @@ export const translations = {
     evidenceLoading: 'Loading evidence…',
     evidenceNone: 'No evidence attached yet',
     evidenceView: 'View evidence',
+    evidenceUploaded: 'Evidence verified and recorded',
   },
   es: {
     // Navigation
@@ -454,6 +455,7 @@ export const translations = {
     evidenceLoading: 'Cargando evidencia…',
     evidenceNone: 'Aún no hay evidencia adjunta',
     evidenceView: 'Ver evidencia',
+    evidenceUploaded: 'Evidencia verificada y registrada',
   },
 } as const
 

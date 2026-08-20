@@ -29,6 +29,7 @@ This guide covers how to build, deploy, verify, and release Medovant safely acro
 - [ ] `target/idl/medovant.json` is up to date
 - [ ] Frontend IDL synced to `app/src/idl/medovant.json`
 - [ ] Wallet keypairs and secrets are not committed
+- [ ] Supabase schema applied and `evidence` Edge Function deployed (see 5.5)
 
 ## 5. Build and Deploy Steps
 
@@ -61,6 +62,23 @@ PowerShell equivalent:
 ```powershell
 Copy-Item target/idl/medovant.json app/src/idl/medovant.json -Force
 ```
+
+### 5.5 Supabase (off-chain metadata + evidence)
+
+```bash
+# 1. Apply RLS hardening (TD-08) — run supabase/schema.sql in the SQL editor
+#    or via the Supabase CLI.
+supabase link --project-ref <ref>
+supabase db push
+
+# 2. Deploy the evidence Edge Function (single writer for maintenance_events).
+#    It needs SUPABASE_SERVICE_ROLE_KEY (set automatically at deploy).
+supabase functions deploy evidence
+
+# 3. Frontend: set VITE_SUPABASE_FUNCTIONS_URL=https://<ref>.functions.supabase.co
+```
+
+Verify the close with `node scripts/verify-evidence-rls.mjs` (see 6).
 
 ## 6. Post-Deployment Validation
 
