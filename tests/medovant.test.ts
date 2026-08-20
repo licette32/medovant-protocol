@@ -65,6 +65,27 @@ describe("medovant", () => {
     );
   });
 
+  function extractMessage(e: unknown): string {
+    return e && typeof e === "object" && "message" in e
+      ? String((e as { message: string }).message)
+      : "";
+  }
+
+  function expectFailure(promise: Promise<unknown>, patterns: string[]): Promise<void> {
+    return promise.then(
+      () => {
+        expect.fail("Se esperaba que la transacción fallara");
+      },
+      (e: unknown) => {
+        const msg = extractMessage(e);
+        expect(msg.length).to.be.greaterThan(0);
+        expect(msg.toLowerCase()).to.satisfy((m: string) =>
+          patterns.some((p) => m.includes(p.toLowerCase()))
+        );
+      }
+    );
+  }
+
   it("register_technician: creates technician profile", async () => {
     await program.methods
       .registerTechnician()
@@ -362,27 +383,6 @@ describe("medovant", () => {
         .rpc();
     });
 
-    function extractMessage(e: unknown): string {
-      return e && typeof e === "object" && "message" in e
-        ? String((e as { message: string }).message)
-        : "";
-    }
-
-    function expectFailure(promise: Promise<unknown>, patterns: string[]): Promise<void> {
-      return promise.then(
-        () => {
-          expect.fail("Se esperaba que la transacción fallara");
-        },
-        (e: unknown) => {
-          const msg = extractMessage(e);
-          expect(msg.length).to.be.greaterThan(0);
-          expect(msg.toLowerCase()).to.satisfy((m: string) =>
-            patterns.some((p) => m.includes(p.toLowerCase()))
-          );
-        }
-      );
-    }
-
     it("register_technician twice falla (PDA ya inicializado)", async () => {
       await expectFailure(
         program.methods
@@ -501,6 +501,100 @@ describe("medovant", () => {
         hospital.publicKey
       );
       expect(hospitalBalanceAfter).to.be.greaterThan(hospitalBalanceBefore);
+    });
+  });
+
+  describe("complete_maintenance replay (#36)", () => {
+    const assetId3 = new anchor.BN(3);
+
+    let asset3Pda: PublicKey;
+    let asset3Vault: PublicKey;
+
+    before(async () => {
+      [asset3Pda] = PublicKey.findProgramAddressSync(
+        [
+          Buffer.from("equipment"),
+          hospital.publicKey.toBuffer(),
+          assetId3.toArrayLike(Buffer, "le", 8),
+        ],
+        program.programId
+      );
+      [asset3Vault] = PublicKey.findProgramAddressSync(
+        [Buffer.from("vault"), asset3Pda.toBuffer()],
+        program.programId
+      );
+
+      await program.methods
+        .initializeAsset(assetId3)
+        .accounts({
+          hospital: hospital.publicKey,
+          medicalAsset: asset3Pda,
+          systemProgram: SystemProgram.programId,
+        })
+        .signers([hospital])
+        .rpc();
+
+      await program.methods
+        .reportIssue(new anchor.BN(REWARD_LAMPORTS))
+        .accounts({
+          hospital: hospital.publicKey,
+          medicalAsset: asset3Pda,
+          escrowVault: asset3Vault,
+          systemProgram: SystemProgram.programId,
+        })
+        .signers([hospital])
+        .rpc();
+    });
+
+    it("complete_maintenance repetido falla, no drena el vault y no re-credita", async () => {
+      await program.methods
+        .completeMaintenance()
+        .accounts({
+          hospital: hospital.publicKey,
+          technician: technician.publicKey,
+          medicalAsset: asset3Pda,
+          escrowVault: asset3Vault,
+          technicianProfile: technicianProfilePda,
+          systemProgram: SystemProgram.programId,
+        })
+        .signers([hospital, technician])
+        .rpc();
+
+      const assetAfterFirst = await program.account.medicalAsset.fetch(asset3Pda);
+      expect(assetAfterFirst.status).to.include.keys("active");
+      expect(assetAfterFirst.maintenanceReward.toString()).to.equal("0");
+
+      const profileAfterFirst = await program.account.technicianProfile.fetch(
+        technicianProfilePda
+      );
+      const vaultAfterFirst = await provider.connection.getBalance(asset3Vault);
+      expect(vaultAfterFirst).to.be.greaterThan(0);
+
+      await expectFailure(
+        program.methods
+          .completeMaintenance()
+          .accounts({
+            hospital: hospital.publicKey,
+            technician: technician.publicKey,
+            medicalAsset: asset3Pda,
+            escrowVault: asset3Vault,
+            technicianProfile: technicianProfilePda,
+            systemProgram: SystemProgram.programId,
+          })
+          .signers([hospital, technician])
+          .rpc(),
+        ["NoIssueReported", "6002", "0x1772"]
+      );
+
+      const profileAfterSecond = await program.account.technicianProfile.fetch(
+        technicianProfilePda
+      );
+      expect(profileAfterSecond.jobsCompleted.toString()).to.equal(
+        profileAfterFirst.jobsCompleted.toString()
+      );
+
+      const vaultAfterSecond = await provider.connection.getBalance(asset3Vault);
+      expect(vaultAfterSecond).to.equal(vaultAfterFirst);
     });
   });
 });
