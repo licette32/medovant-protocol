@@ -1,47 +1,82 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useLang } from '@/i18n/LangContext'
-import { uploadEvidence, validateEvidenceFile, type MaintenanceEvidence } from '@/utils/evidence'
+import { submitEvidence, validateEvidenceFile, type MaintenanceEvidence } from '@/utils/evidence'
 
 type Props = {
   assetPda: string
   hospital: string
   technician: string
   disabled?: boolean
+  /** Set once the complete_maintenance tx lands; triggers the evidence upload. */
+  txSignature?: string | null
   onUploaded: (evidence: MaintenanceEvidence) => void
 }
 
 /**
- * Technician-side attachment uploader (#4). Validates the file (image/PDF,
- * <= 5MB), uploads it to Supabase Storage and reports the recorded evidence
- * row. SHA-256 is computed client-side so the hash travels with the payload.
+ * Technician-side attachment uploader (#4 / TD-08). Validates the file
+ * (image/PDF, <= 5MB), keeps it selected for preview and only submits it to
+ * the `evidence` Edge Function once the maintenance tx signature arrives.
+ * The server verifies the tx on-chain before persisting anything, so no row
+ * can exist without a real, verified transaction.
  */
-export default function EvidenceUploader({ assetPda, hospital, technician, disabled, onUploaded }: Props) {
+export default function EvidenceUploader({
+  assetPda,
+  hospital,
+  technician,
+  disabled,
+  txSignature,
+  onUploaded,
+}: Props) {
   const { t } = useLang()
   const inputRef = useRef<HTMLInputElement>(null)
+  const [file, setFile] = useState<File | null>(null)
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [preview, setPreview] = useState<{ name: string; url: string } | null>(null)
+  const submittedTx = useRef<string | null>(null)
 
-  async function handleFile(file: File | null) {
+  useEffect(() => {
+    setFile(null)
+    setPreview(null)
+    setError(null)
+    setUploading(false)
+    submittedTx.current = null
+    if (inputRef.current) inputRef.current.value = ''
+  }, [assetPda])
+
+  useEffect(() => {
+    if (!txSignature || !file || uploading || submittedTx.current === txSignature) return
+    submittedTx.current = txSignature
+    setUploading(true)
+    setError(null)
+    void (async () => {
+      try {
+        const evidence = await submitEvidence({ file, assetPda, hospital, technician, txSignature })
+        onUploaded(evidence)
+        setFile(null)
+        setPreview(null)
+        if (inputRef.current) inputRef.current.value = ''
+      } catch (e: unknown) {
+        setError(e instanceof Error ? e.message : 'Upload failed')
+      } finally {
+        setUploading(false)
+      }
+    })()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [txSignature, file, assetPda, hospital, technician])
+
+  function handleFile(selected: File | null) {
     setError(null)
     setPreview(null)
-    if (!file) return
-    const invalid = validateEvidenceFile(file)
+    if (!selected) return
+    const invalid = validateEvidenceFile(selected)
     if (invalid) {
       setError(t(invalid as 'evidenceTooLarge' | 'evidenceInvalidType'))
       return
     }
-    setUploading(true)
-    try {
-      const evidence = await uploadEvidence({ file, assetPda, hospital, technician })
-      if (file.type.startsWith('image/')) {
-        setPreview({ name: file.name, url: URL.createObjectURL(file) })
-      }
-      onUploaded(evidence)
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Upload failed')
-    } finally {
-      setUploading(false)
+    setFile(selected)
+    if (selected.type.startsWith('image/')) {
+      setPreview({ name: selected.name, url: URL.createObjectURL(selected) })
     }
   }
 
@@ -74,6 +109,7 @@ export default function EvidenceUploader({ assetPda, hospital, technician, disab
             <button
               type="button"
               onClick={() => {
+                setFile(null)
                 setPreview(null)
                 if (inputRef.current) inputRef.current.value = ''
               }}

@@ -1,7 +1,10 @@
 import { getSupabase, isSupabaseConfigured } from '@/utils/supabase'
 
-const EVIDENCE_BUCKET = 'evidence'
 const MAX_EVIDENCE_BYTES = 5 * 1024 * 1024
+
+function evidenceFunctionUrl(): string | null {
+  return (import.meta.env.VITE_SUPABASE_FUNCTIONS_URL as string | undefined)?.trim() || null
+}
 
 export interface MaintenanceEvidence {
   readonly id: string
@@ -28,12 +31,7 @@ type EvidenceRow = {
 }
 
 export function isEvidenceConfigured(): boolean {
-  return isSupabaseConfigured()
-}
-
-async function sha256Hex(file: File): Promise<string> {
-  const digest = await crypto.subtle.digest('SHA-256', await file.arrayBuffer())
-  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('')
+  return isSupabaseConfigured() && Boolean(evidenceFunctionUrl())
 }
 
 function rowToEvidence(row: EvidenceRow): MaintenanceEvidence {
@@ -50,53 +48,38 @@ function rowToEvidence(row: EvidenceRow): MaintenanceEvidence {
   }
 }
 
-function fileExtension(name: string): string {
-  const dot = name.lastIndexOf('.')
-  return dot >= 0 ? name.slice(dot + 1).toLowerCase() : 'bin'
-}
-
 /**
- * Uploads an evidence file to Supabase Storage and records the event row.
+ * Submits evidence to the `evidence` Edge Function AFTER the maintenance tx
+ * lands. The function verifies tx_signature against the Solana RPC (program
+ * ID, asset PDA, technician signer) before uploading the file and inserting
+ * the row with the service role, so the anon key can never write directly.
  * The SHA-256 of the uploaded bytes is stored so the hospital can verify the
  * attachment was not modified after the technician completed the job.
  */
-export async function uploadEvidence(params: {
+export async function submitEvidence(params: {
   file: File
   assetPda: string
   hospital: string
   technician: string
-  txSignature?: string
+  txSignature: string
 }): Promise<MaintenanceEvidence> {
-  const supabase = getSupabase()
-  if (!supabase) throw new Error('Supabase not configured')
+  const baseUrl = evidenceFunctionUrl()
+  if (!baseUrl) throw new Error('Evidence Edge Function not configured')
 
-  const hash = await sha256Hex(params.file)
-  const ext = fileExtension(params.file.name)
-  const storagePath = `${params.assetPda}/${hash}.${ext}`
+  const form = new FormData()
+  form.append('file', params.file)
+  form.append('assetPda', params.assetPda)
+  form.append('hospital', params.hospital)
+  form.append('technician', params.technician)
+  form.append('txSignature', params.txSignature)
 
-  const { error: uploadError } = await supabase.storage
-    .from(EVIDENCE_BUCKET)
-    .upload(storagePath, params.file, { contentType: params.file.type, upsert: true })
-  if (uploadError) throw new Error(uploadError.message)
-
-  const { data: publicUrlData } = supabase.storage.from(EVIDENCE_BUCKET).getPublicUrl(storagePath)
-
-  const { data, error } = await supabase
-    .from('maintenance_events')
-    .insert({
-      asset_pda: params.assetPda,
-      hospital: params.hospital,
-      technician: params.technician,
-      tx_signature: params.txSignature ?? null,
-      evidence_url: publicUrlData.publicUrl,
-      evidence_hash: hash,
-      evidence_mime: params.file.type,
-    })
-    .select('*')
-    .single()
-
-  if (error) throw new Error(error.message)
-  return rowToEvidence(data as EvidenceRow)
+  const res = await fetch(`${baseUrl}/evidence`, { method: 'POST', body: form })
+  const body: unknown = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    const message = (body as { error?: string } | null)?.error
+    throw new Error(message ?? `Evidence submission failed (${res.status})`)
+  }
+  return rowToEvidence(body as EvidenceRow)
 }
 
 export async function fetchEvidenceForAsset(assetPda: string): Promise<MaintenanceEvidence[]> {
@@ -113,19 +96,6 @@ export async function fetchEvidenceForAsset(assetPda: string): Promise<Maintenan
     return []
   }
   return (data ?? []).map((row) => rowToEvidence(row as EvidenceRow))
-}
-
-/** Links an evidence row to the escrow-release transaction once it lands. */
-export async function attachEvidenceTxSignature(id: string, txSignature: string): Promise<void> {
-  const supabase = getSupabase()
-  if (!supabase) return
-  const { error } = await supabase
-    .from('maintenance_events')
-    .update({ tx_signature: txSignature })
-    .eq('id', id)
-  if (error) {
-    console.error('[Medovant] Failed to link evidence to transaction:', error.message)
-  }
 }
 
 export function validateEvidenceFile(file: File): string | null {

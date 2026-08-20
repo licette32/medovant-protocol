@@ -14,8 +14,6 @@ import { getAssetDisplayName } from '@/utils/assetMetadata'
 import { truncatePubkey } from '@/utils/formatters'
 import { fetchAllAssets } from '@/utils/assetDiscovery'
 import { isEvidenceConfigured } from '@/utils/evidence'
-import type { MaintenanceEvidence } from '@/utils/evidence'
-import { attachEvidenceTxSignature } from '@/utils/evidence'
 import PstPanel from '@/components/PstPanel'
 import EvidenceUploader from '@/components/EvidenceUploader'
 
@@ -52,7 +50,7 @@ export default function TechnicianDashboard({ program, publicKey, onTxSuccess, a
   const [jobsLoading, setJobsLoading] = useState(false)
   const [jobsError, setJobsError] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [uploadedEvidence, setUploadedEvidence] = useState<MaintenanceEvidence | null>(null)
+  const [completeSig, setCompleteSig] = useState<string | null>(null)
 
   const selectedJob = availableJobs.find((j) => j.id === selectedJobId) ?? null
   const evidenceConfigured = isEvidenceConfigured()
@@ -126,7 +124,7 @@ export default function TechnicianDashboard({ program, publicKey, onTxSuccess, a
   }, [availableJobs, selectedJobId])
 
   useEffect(() => {
-    setUploadedEvidence(null)
+    setCompleteSig(null)
   }, [selectedJobId])
 
   const runCompleteMaintenance = useCallback(
@@ -183,10 +181,7 @@ export default function TechnicianDashboard({ program, publicKey, onTxSuccess, a
           lang === 'es' ? `Mantenimiento completado — ${doneLabel}` : `Maintenance completed — ${doneLabel}`,
           'fix'
         )
-        if (uploadedEvidence) {
-          await attachEvidenceTxSignature(uploadedEvidence.id, sig)
-          setUploadedEvidence(null)
-        }
+        setCompleteSig(sig)
         await refreshProfile()
         await fetchAvailableJobs()
       } catch (e: unknown) {
@@ -195,7 +190,7 @@ export default function TechnicianDashboard({ program, publicKey, onTxSuccess, a
         setLoading(false)
       }
     },
-    [program, publicKey, onTxSuccess, lang, fetchAvailableJobs, refreshProfile, t, uploadedEvidence]
+    [program, publicKey, onTxSuccess, lang, fetchAvailableJobs, refreshProfile, t]
   )
 
   const earningsItems = activity.filter((a) => a.type === 'fix')
@@ -451,7 +446,8 @@ export default function TechnicianDashboard({ program, publicKey, onTxSuccess, a
               hospital={selectedJob?.hospital ?? ''}
               technician={publicKey ? publicKey.toBase58() : ''}
               disabled={!selectedJob || loading}
-              onUploaded={(evidence) => setUploadedEvidence(evidence)}
+              txSignature={completeSig}
+              onUploaded={() => toast.success(t('evidenceUploaded'))}
             />
           </div>
         )}

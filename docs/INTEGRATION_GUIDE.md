@@ -56,6 +56,20 @@ Seeds must remain exactly aligned with on-chain program logic.
 - On-chain: status, counters, maintenance reward, authority
 - Off-chain (UI only): asset name/location in browser localStorage
 
+### 5.1 Evidence submission (Supabase Edge Function, TD-08)
+
+- Evidence is submitted **after** `complete_maintenance` lands on-chain (never before).
+- The frontend calls `POST {VITE_SUPABASE_FUNCTIONS_URL}/evidence` with multipart form data:
+  `file`, `assetPda`, `hospital`, `technician`, `txSignature`.
+- The function verifies against the devnet RPC that the tx exists and succeeded,
+  invoked the medovant program (`5JMd8ADy1KHBhohX6NLbz6WQdyCQTfLd55Gmzo2r34WD`),
+  touched the claimed `assetPda`, and was signed by `technician`. Only then it
+  uploads the file and inserts the `maintenance_events` row (service role).
+- RLS: `maintenance_events` has **no** anon insert/update policy; anon `select` is
+  limited to rows with `tx_signature is not null`. The `evidence` bucket is
+  read-public, write-denied to anon.
+- Rejections: `403` with `{ error }` for unverified transactions.
+
 ## 6. Integration Examples
 
 ### 6.1 Frontend hook usage
