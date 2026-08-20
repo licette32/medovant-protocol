@@ -50,7 +50,6 @@ export default function HospitalDashboard({
 
   const kpiActive = useMemo(() => assets.filter((a) => a.status === 'Active').length, [assets])
   const kpiIssues = useMemo(() => assets.filter((a) => a.status === 'Issue Reported').length, [assets])
-  const kpiMaintenance = useMemo(() => assets.filter((a) => a.status === 'Under Maintenance').length, [assets])
   const kpiDecommissioned = useMemo(() => assets.filter((a) => a.status === 'Decommissioned').length, [assets])
   const kpiEscrowSOL = useMemo(
     () => assets.reduce((sum, a) => sum + a.maintenanceReward, 0) / 1e9,
@@ -201,7 +200,6 @@ export default function HospitalDashboard({
         {kpi('var(--text2)', 'var(--text)', t('totalEquipment'), t('kpiActiveSub'), assets.length)}
         {kpi('var(--green)', 'var(--green)', t('kpiActiveAssets'), t('kpiActiveSub'), kpiActive)}
         {kpi('var(--amber)', 'var(--amber)', t('kpiIssuesReported'), issuesSub, kpiIssues)}
-        {kpi('var(--cyan)', 'var(--cyan)', t('kpiInMaintenanceLabel'), t('kpiInMaintenanceSub'), kpiMaintenance)}
         {kpi('var(--red)', 'var(--red)', t('kpiDecommissionedLabel'), t('kpiDecommissionedSub'), kpiDecommissioned)}
       </div>
 

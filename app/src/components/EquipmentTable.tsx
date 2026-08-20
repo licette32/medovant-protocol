@@ -69,15 +69,13 @@ interface ModalState {
   maintenanceReward?: number
 }
 
-const DEMO_STATUSES = ['Active', 'Issue Reported', 'Under Maintenance'] as const
+const DEMO_STATUSES = ['Active', 'Issue Reported'] as const
 
 function statusBadgeClass(status: string): string {
   if (status === 'Active')
     return 'border border-[color:var(--green-b)] bg-[var(--green-d)] text-[color:var(--green)]'
   if (status === 'Issue Reported')
     return 'border border-[color:var(--amber-b)] bg-[var(--amber-d)] text-[color:var(--amber)]'
-  if (status === 'Under Maintenance')
-    return 'border border-[color:var(--cyan-b)] bg-[var(--cyan-d)] text-[color:var(--cyan)]'
   if (status === 'Decommissioned')
     return 'border border-med bg-surface3 text-tmuted'
   return 'border border-med bg-surface2 text-tsec'
@@ -86,7 +84,6 @@ function statusBadgeClass(status: string): string {
 function translateStatus(status: string, t: (key: TranslationKey) => string): string {
   if (status === 'Active') return t('statusActive')
   if (status === 'Issue Reported') return t('statusIssue')
-  if (status === 'Under Maintenance') return t('statusMaintenance')
   if (status === 'Decommissioned') return t('statusDecommissioned')
   return status
 }
@@ -371,9 +368,6 @@ export default function EquipmentTable({
           ✓ {t('completeMaint')}
         </button>
       )
-    }
-    if (s === 'Under Maintenance') {
-      return <span className="text-[13px] text-tmuted">{t('waitingTech')}</span>
     }
     if (s === 'Decommissioned') {
       return <span className="text-[13px] text-tmuted">{t('statusDecommissioned')}</span>
