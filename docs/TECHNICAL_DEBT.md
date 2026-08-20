@@ -63,6 +63,14 @@ identidad del que lo sube.
 - **Fila provisional + confirmación:** agrega estados pending/expiry y reglas de
   caducidad; más superficie de abuso que el orden tx-primero.
 
+### Relación con TD-09 (#27) y el indexer (TD-01)
+Este modelo es la decisión escrita que pide **TD-09 (#27)**: toda escritura off-chain
+se valida contra la verdad on-chain antes de tratarse como autoritativa. El flujo de
+evidencia lo implementa; el flujo de metadatos de `assets` queda fuera de alcance del
+#27. Si el **indexer (TD-01)** llega a ser el único escritor de estas tablas, este
+problema queda subsumido: la verificación pasaría a ser derivación de eventos
+on-chain, y la Edge Function podría retirarse.
+
 ---
 
 ## TD-08 — RLS en `maintenance_events` y bucket `evidence`
