@@ -288,6 +288,8 @@ describe("medovant", () => {
       .accounts({
         hospital: hospital.publicKey,
         medicalAsset: medicalAssetPda,
+        escrowVault: escrowVaultPda,
+        systemProgram: SystemProgram.programId,
       })
       .signers([hospital])
       .rpc();
@@ -432,15 +434,59 @@ describe("medovant", () => {
       );
     });
 
-    it("decommission_asset con SOL en vault lo permite (SOL queda huérfano)", async () => {
+    it("decommission_asset con escrow activo falla (SOL protegido en vault)", async () => {
       const vaultBalanceBefore = await provider.connection.getBalance(asset2Vault);
       expect(vaultBalanceBefore).to.be.greaterThan(0);
+
+      await expectFailure(
+        program.methods
+          .decommissionAsset()
+          .accounts({
+            hospital: hospital.publicKey,
+            medicalAsset: asset2Pda,
+            escrowVault: asset2Vault,
+            systemProgram: SystemProgram.programId,
+          })
+          .signers([hospital])
+          .rpc(),
+        ["AssetHasPendingEscrow", "6005", "0x1775"]
+      );
+
+      const assetInfo = await provider.connection.getAccountInfo(asset2Pda);
+      expect(assetInfo).to.not.be.null;
+
+      const vaultBalanceAfter = await provider.connection.getBalance(asset2Vault);
+      expect(vaultBalanceAfter).to.equal(vaultBalanceBefore);
+    });
+
+    it("decommission_asset con vault drenado: libera el rent del vault al hospital", async () => {
+      await program.methods
+        .completeMaintenance()
+        .accounts({
+          hospital: hospital.publicKey,
+          technician: technician.publicKey,
+          medicalAsset: asset2Pda,
+          escrowVault: asset2Vault,
+          technicianProfile: technicianProfilePda,
+          systemProgram: SystemProgram.programId,
+        })
+        .signers([hospital, technician])
+        .rpc();
+
+      const vaultBalanceBefore = await provider.connection.getBalance(asset2Vault);
+      expect(vaultBalanceBefore).to.be.greaterThan(0);
+
+      const hospitalBalanceBefore = await provider.connection.getBalance(
+        hospital.publicKey
+      );
 
       await program.methods
         .decommissionAsset()
         .accounts({
           hospital: hospital.publicKey,
           medicalAsset: asset2Pda,
+          escrowVault: asset2Vault,
+          systemProgram: SystemProgram.programId,
         })
         .signers([hospital])
         .rpc();
@@ -448,10 +494,13 @@ describe("medovant", () => {
       const assetInfo = await provider.connection.getAccountInfo(asset2Pda);
       expect(assetInfo).to.be.null;
 
-      // Comportamiento actual: decommission no revisa el vault, el escrow
-      // queda retenido en la cuenta system-owned sin forma de liberarlo.
       const vaultBalanceAfter = await provider.connection.getBalance(asset2Vault);
-      expect(vaultBalanceAfter).to.be.greaterThan(0);
+      expect(vaultBalanceAfter).to.equal(0);
+
+      const hospitalBalanceAfter = await provider.connection.getBalance(
+        hospital.publicKey
+      );
+      expect(hospitalBalanceAfter).to.be.greaterThan(hospitalBalanceBefore);
     });
   });
 });

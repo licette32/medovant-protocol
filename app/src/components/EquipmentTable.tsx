@@ -296,11 +296,14 @@ export default function EquipmentTable({
     setModalBusy(true)
     try {
       const pda = getMedicalAssetPDA(publicKey, assetId)
+      const vault = getEscrowVaultPDA(pda)
       const tx = await program.methods
         .decommissionAsset()
         .accounts({
           hospital: publicKey,
           medicalAsset: pda,
+          escrowVault: vault,
+          systemProgram: SystemProgram.programId,
         })
         .rpc()
       showTxToast(tx)

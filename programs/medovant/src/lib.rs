@@ -31,6 +31,9 @@ pub enum MedovantError {
 
     #[msg("Technician profile pubkey does not match the signing technician")]
     TechnicianProfileMismatch,
+
+    #[msg("No se puede dar de baja un equipo con escrow activo; completá o cancelá el mantenimiento primero")]
+    AssetHasPendingEscrow,
 }
 
 #[event]
@@ -264,11 +267,44 @@ pub mod medovant {
     }
 
     // Hospital decommissions equipment; PDA is closed and rent returned to hospital.
-    // Accounts: hospital (signer), medical_asset (mut PDA, close = hospital, has_one hospital).
-    // State: sets Decommissioned then Anchor closes the account.
+    // Escrow invariant: rejected while an issue is pending (vault holds locked reward).
+    // A leftover vault (rent-exempt only, after completed maintenance) is drained to the hospital
+    // before the asset PDA closes, so no SOL can stay stranded in a vault without an owning asset.
+    // Accounts: hospital (signer), medical_asset (mut PDA, close = hospital, has_one hospital),
+    //           escrow_vault (mut PDA, seeds), system_program.
+    // State: drains vault if non-empty, sets Decommissioned, then Anchor closes the account.
     // Emits: none.
     pub fn decommission_asset(ctx: Context<DecommissionAsset>) -> Result<()> {
         let asset = &mut ctx.accounts.medical_asset;
+        require!(
+            asset.status == AssetStatus::Active,
+            MedovantError::AssetHasPendingEscrow
+        );
+
+        let vault = ctx.accounts.escrow_vault.to_account_info();
+        if vault.lamports() > 0 {
+            let medical_key = asset.key();
+            let bump = ctx.bumps.escrow_vault;
+            let seeds = &[
+                b"vault".as_ref(),
+                medical_key.as_ref(),
+                &[bump],
+            ];
+            let signer = &[&seeds[..]];
+
+            system_program::transfer(
+                CpiContext::new_with_signer(
+                    ctx.accounts.system_program.to_account_info(),
+                    system_program::Transfer {
+                        from: vault.clone(),
+                        to: ctx.accounts.hospital.to_account_info(),
+                    },
+                    signer,
+                ),
+                vault.lamports(),
+            )?;
+        }
+
         asset.status = AssetStatus::Decommissioned;
         Ok(())
     }
@@ -386,4 +422,14 @@ pub struct DecommissionAsset<'info> {
         bump = medical_asset.bump
     )]
     pub medical_asset: Account<'info, MedicalAsset>,
+
+    #[account(
+        mut,
+        seeds = [b"vault", medical_asset.key().as_ref()],
+        bump
+    )]
+    /// CHECK: System-owned vault PDA; drained to the hospital during decommission.
+    pub escrow_vault: UncheckedAccount<'info>,
+
+    pub system_program: Program<'info, System>,
 }

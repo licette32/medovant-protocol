@@ -23,7 +23,10 @@
         {
           "name": "hospital",
           "writable": true,
-          "signer": true
+          "signer": true,
+          "relations": [
+            "medical_asset"
+          ]
         },
         {
           "name": "technician",
@@ -169,6 +172,32 @@
               }
             ]
           }
+        },
+        {
+          "name": "escrow_vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "medical_asset"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
         }
       ],
       "args": []
@@ -483,6 +512,11 @@
       "code": 6004,
       "name": "TechnicianProfileMismatch",
       "msg": "Technician profile pubkey does not match the signing technician"
+    },
+    {
+      "code": 6005,
+      "name": "AssetHasPendingEscrow",
+      "msg": "No se puede dar de baja un equipo con escrow activo; completá o cancelá el mantenimiento primero"
     }
   ],
   "types": [
