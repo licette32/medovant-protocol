@@ -39,8 +39,6 @@ function statusBadge(status: string): string {
   if (status === 'Active') return 'border border-[color:var(--green-b)] bg-[var(--green-d)] text-[color:var(--green)]'
   if (status === 'Issue Reported')
     return 'border border-[color:var(--amber-b)] bg-[var(--amber-d)] text-[color:var(--amber)]'
-  if (status === 'Under Maintenance')
-    return 'border border-[color:var(--cyan-b)] bg-[var(--cyan-d)] text-[color:var(--cyan)]'
   return 'border border-med bg-surface3 text-tmuted'
 }
 

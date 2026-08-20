@@ -25,7 +25,6 @@ export function lamportsToSol(lamports: number): string {
 export function mapAssetStatus(status: Record<string, unknown>): string {
   if ('active' in status) return 'Active'
   if ('issueReported' in status) return 'Issue Reported'
-  if ('underMaintenance' in status) return 'Under Maintenance'
   if ('decommissioned' in status) return 'Decommissioned'
   return 'Unknown'
 }

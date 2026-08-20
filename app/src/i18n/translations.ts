@@ -38,7 +38,6 @@ export const translations = {
     // Status badges
     statusActive: 'Active',
     statusIssue: 'Issue Reported',
-    statusMaintenance: 'Under Maintenance',
     statusDecommissioned: 'Decommissioned',
     // Actions
     actions: 'Actions',
@@ -138,8 +137,6 @@ export const translations = {
     kpiActiveSub: 'On-chain PDAs',
     kpiIssuesReported: 'Issues Reported',
     kpiIssuesSub: 'Escrow locked',
-    kpiInMaintenanceLabel: 'In Maintenance',
-    kpiInMaintenanceSub: 'Pending release',
     kpiDecommissionedLabel: 'Decommissioned',
     kpiDecommissionedSub: 'Closed accounts',
     colReward: 'Reward',
@@ -190,7 +187,6 @@ export const translations = {
     escrowWarning:
       'This SOL will be locked in the vault PDA until the technician completes the job.',
     decommissionWarning: 'This action is irreversible. The PDA account will be closed.',
-    waitingTech: 'Waiting for technician',
     sampleRow: 'Sample — register an asset to see real actions',
     noAssetsFound: 'No assets found for your wallet. Register your first asset.',
     equipmentTableSubtitle: 'On-chain PDAs — refresh to load assets (IDs 1–5)',
@@ -270,7 +266,6 @@ export const translations = {
     // Status badges
     statusActive: 'Activo',
     statusIssue: 'Problema reportado',
-    statusMaintenance: 'En mantenimiento',
     statusDecommissioned: 'Dado de baja',
     // Actions
     actions: 'Acciones',
@@ -369,8 +364,6 @@ export const translations = {
     kpiActiveSub: 'PDAs on-chain',
     kpiIssuesReported: 'Incidencias',
     kpiIssuesSub: 'Escrow bloqueado',
-    kpiInMaintenanceLabel: 'En mantenimiento',
-    kpiInMaintenanceSub: 'Liberación pendiente',
     kpiDecommissionedLabel: 'Dados de baja',
     kpiDecommissionedSub: 'Cuentas cerradas',
     colReward: 'Recompensa',
@@ -422,7 +415,6 @@ export const translations = {
     escrowWarning:
       'Este SOL se bloqueará en el vault PDA hasta que el técnico complete el trabajo.',
     decommissionWarning: 'Esta acción es irreversible. La cuenta PDA se cerrará.',
-    waitingTech: 'Esperando técnico',
     sampleRow: 'Muestra — registrá un equipo para ver acciones reales',
     noAssetsFound: 'No encontramos activos para tu wallet. Registrá tu primer equipo.',
     equipmentTableSubtitle: 'PDAs on-chain — actualizá para cargar activos (IDs 1–5)',
