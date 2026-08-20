@@ -48,8 +48,9 @@ Seeds must remain exactly aligned with on-chain program logic.
 ### 4.5 `decommission_asset()`
 
 - Signer: hospital
-- Required accounts: hospital, medicalAsset
-- Result: account closed/decommissioned
+- Required accounts: hospital, medicalAsset PDA, escrowVault PDA, systemProgram
+- Rejected while an issue is pending (`AssetHasPendingEscrow`): the escrow would be orphaned
+- Result: leftover vault lamports drained to the hospital, account closed/decommissioned
 
 ## 5. Data Model Notes
 

@@ -167,11 +167,14 @@ export default function ActionsPanel({ program, publicKey, onTxSuccess }: Props)
     setLoading(true)
     try {
       const pda = getMedicalAssetPDA(publicKey!, id)
+      const vault = getEscrowVaultPDA(pda)
       const sig = await program!
         .methods.decommissionAsset()
         .accounts({
           hospital: publicKey!,
           medicalAsset: pda,
+          escrowVault: vault,
+          systemProgram: SystemProgram.programId,
         })
         .rpc()
       showTxToast(sig)
