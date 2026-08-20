@@ -103,3 +103,20 @@ export function validateEvidenceFile(file: File): string | null {
   const allowed = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf']
   return allowed.includes(file.type) ? null : 'evidenceInvalidType'
 }
+
+/**
+ * Downloads the evidence attachment and recomputes its SHA-256 to confirm it
+ * still matches the hash recorded at upload time (SEC-03). Returns 'verified'
+ * when they match, 'mismatch' when the file was modified, and throws when the
+ * file cannot be fetched (e.g. CORS/network blocks the download).
+ */
+export async function verifyEvidenceIntegrity(evidence: MaintenanceEvidence): Promise<'verified' | 'mismatch'> {
+  if (!evidence.evidenceUrl || !evidence.evidenceHash) {
+    throw new Error('Evidence has no hash to verify')
+  }
+  const res = await fetch(evidence.evidenceUrl)
+  if (!res.ok) throw new Error(`Download failed (HTTP ${res.status})`)
+  const digest = await crypto.subtle.digest('SHA-256', await res.arrayBuffer())
+  const hex = [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('')
+  return hex === evidence.evidenceHash ? 'verified' : 'mismatch'
+}

@@ -227,6 +227,13 @@ export const translations = {
     evidenceNone: 'No evidence attached yet',
     evidenceView: 'View evidence',
     evidenceUploaded: 'Evidence verified and recorded',
+    evidenceVerifying: 'Checking integrity…',
+    evidenceVerified: 'Integrity verified',
+    evidenceMismatch: 'Hash mismatch — file modified',
+    evidenceVerifyError: 'Could not verify (download blocked)',
+    evidenceRetry: 'Retry',
+    evidenceBannerOk: 'All evidence passed the integrity check',
+    evidenceBannerBad: 'Evidence FAILED the integrity check — do not approve',
   },
   es: {
     // Navigation
@@ -456,6 +463,13 @@ export const translations = {
     evidenceNone: 'Aún no hay evidencia adjunta',
     evidenceView: 'Ver evidencia',
     evidenceUploaded: 'Evidencia verificada y registrada',
+    evidenceVerifying: 'Verificando integridad…',
+    evidenceVerified: 'Integridad verificada',
+    evidenceMismatch: 'El hash no coincide — archivo modificado',
+    evidenceVerifyError: 'No se pudo verificar (descarga bloqueada)',
+    evidenceRetry: 'Reintentar',
+    evidenceBannerOk: 'Toda la evidencia pasó la verificación',
+    evidenceBannerBad: 'La evidencia NO pasó la verificación — no aprobar',
   },
 } as const
 
