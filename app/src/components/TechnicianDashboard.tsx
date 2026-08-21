@@ -114,6 +114,10 @@ export default function TechnicianDashboard({ program, publicKey, onTxSuccess, a
   }, [program, publicKey])
 
   const retryAvailableJobs = useCallback(async () => {
+    if (!program || !publicKey) {
+      setAvailableJobs([])
+      return
+    }
     setJobsError(false)
     try {
       const assets = await fetchAllAssets(program)
