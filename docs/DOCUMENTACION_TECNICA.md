@@ -17,7 +17,7 @@ La SPA (`app/`) incluye:
 - **Dashboard hospital:** flujo del protocolo, **KPIs derivados de datos on-chain**, tabla de equipos con acciones y modales, actividad, panel blockchain.
 - **Dashboard técnico:** métricas del perfil on-chain, trabajos demo, formulario para completar mantenimiento.
 
-Los **nombres y ubicaciones** de equipos **no** están en el programa; se guardan en **`localStorage`** (`assetNames.ts`) indexados por `wallet + assetId`.
+Los **nombres y ubicaciones** de equipos **no** están en el programa; se guardan en **Supabase** (tabla `assets`) y se sincronizan vía `utils/assetMetadata.ts` con fallback a `localStorage` para el demo sin configurar variables de entorno.
 
 > **Nota sobre el README raíz:** describe una carpeta `client/` para un cliente Node; el front principal de producto vive en **`app/`** (Vite + React).
 
@@ -149,7 +149,9 @@ cp target/idl/medovant.json app/src/idl/medovant.json
 | Archivo | Uso |
 |---------|-----|
 | `utils/formatters.ts` | `mapAssetStatus`, `normalizeTxSignature`, `truncatePubkey` / `truncateSig`, `lamportsToSol` |
-| `utils/assetNames.ts` | `getAssetMeta`, `saveAssetMeta`, `getAssetDisplayName` |
+| `utils/assetMetadata.ts` | `getAssetMeta`, `getAssetDisplayName`, `upsertAssetMeta`, `hydrateAssetMetadata` (Supabase + localStorage fallback) |
+| `utils/evidence.ts` | `submitEvidence`, `fetchEvidenceForAsset`, `verifyEvidenceIntegrity`, `isEvidenceConfigured` |
+| `utils/supabase.ts` | `getSupabase`, `isSupabaseConfigured` (cliente Supabase singleton) |
 | `utils/solanaTxError.ts` | `toastAnchorTxError`, logs de `SendTransactionError` |
 | `components/Toast.tsx` | Toasts de tx + enlace Explorer |
 | `ActivityFeed.tsx` | Tipos de actividad con manejo defensivo |
@@ -172,12 +174,26 @@ cp target/idl/medovant.json app/src/idl/medovant.json
 
 ## 6. Flujos resumidos (sin lógica nueva)
 
-1. **Registro:** meta en localStorage → `initializeAsset` → `fetchAssets` / `refreshAssets`.
+1. **Registro:** meta en Supabase (`upsertAssetMeta`) → `initializeAsset` → `fetchAssets` / `refreshAssets`.
 2. **Incidencia:** `reportIssue` con lamports al vault → estado `Issue Reported`.
-3. **Completar:** posible `registerTechnician` + `completeMaintenance` (hospital + técnico) → escrow al técnico.
-4. **Errores:** toasts con Anchor + logs; falta de SOL en devnet documentada / mensajes orientativos.
+3. **Completar:** posible `registerTechnician` + `completeMaintenance` (hospital + técnico, PST hand-off) → escrow al técnico → **subida de evidencia** (`submitEvidence` tras confirmar tx on-chain).
+4. **Evidencia (flujo SEC-03 / TD-08):**
+   - El técnico sube archivo + `txSignature` via `POST /evidence` (Edge Function).
+   - La función verifica contra RPC devnet: tx existe y 성공, invoca el programa Medovant, toca el `asset_pda`, firmado por el técnico.
+   - Si pasa: sube archivo a bucket `evidence`, inserta fila en `maintenance_events` con service role (bypass RLS), calcula y guarda `evidence_hash` (SHA-256).
+   - El hospital ve la evidencia en `EvidenceList` y puede verificar integridad (`verifyEvidenceIntegrity`) antes de aprobar.
+5. **Errores:** toasts con Anchor + logs; falta de SOL en devnet documentada / mensajes orientativos.
 
 ---
+
+## 6b. Flujo de evidencia (detalle)
+
+- **Orden:** tx on-chain → evidencia. Nunca hay fila "provisional" sin verificar.
+- **Escritor único:** Edge Function `evidence` (`supabase/functions/evidence`). El cliente solo envía multipart/form-data.
+- **Verificación RPC:** 4 checks (tx existe y no falló, programa Medovant invocado, `asset_pda` en cuentas, `technician` firmó).
+- **RLS cerrada:** `maintenance_events` sin policy insert/update para anon; `select` solo `tx_signature is not null`. Bucket `evidence`: lectura pública, escritura denegada a anon.
+- **Hash:** calculado server-side en la Edge Function; cliente no lo envía.
+- **Deploy manual:** `supabase functions deploy evidence` — ver `docs/DEPLOYMENT.md`. Si no está deployada, `isEvidenceConfigured()` devuelve `false` y la UI oculta el uploader.
 
 ## 7. Estructura de carpetas (relevante)
 
@@ -196,12 +212,24 @@ Medovant-solana/
 │   │   ├── pages/
 │   │   ├── providers/
 │   │   ├── utils/
+│   │   │   ├── assetMetadata.ts   # Supabase assets table + localStorage fallback
+│   │   │   ├── evidence.ts        # Evidence upload/verify (Edge Function)
+│   │   │   ├── supabase.ts        # Supabase client singleton
+│   │   │   ├── pst.ts             # Partially Signed Transaction hand-off
+│   │   │   ├── pdas.ts            # PDA derivation
+│   │   │   ├── formatters.ts      # Status mapping, truncation, lamports→SOL
+│   │   │   ├── solanaTxError.ts   # Anchor error → toast
+│   │   │   └── assetDiscovery.ts  # Asset scanning helpers
 │   │   ├── App.tsx
 │   │   ├── main.tsx
 │   │   └── index.css
 │   ├── vite.config.ts
 │   └── package.json
 ├── client/                     # Cliente Node (ver README)
+├── supabase/
+│   ├── schema.sql              # Esquema idempotente (assets, maintenance_events, bucket)
+│   └── migrations/             # Migraciones versionadas (v1.1+)
+├── supabase/functions/evidence # Edge Function: verify tx → upload → insert
 ├── target/idl/
 ├── Anchor.toml
 ├── README.md
@@ -226,9 +254,10 @@ Medovant-solana/
 ## 9. Limitaciones y decisiones (demo / hackathon)
 
 1. **Rango de IDs:** el hospital escanea **1–10** para KPIs y tabla cuando se usa el dashboard integrado; el modo autónomo de la tabla sigue **1–5**.
-2. **Metadatos de nombre:** solo **localStorage** por navegador.
+2. **Metadatos de nombre:** **Supabase** (`assets` table) con fallback a `localStorage` si no hay `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` configurados (para que el demo funcione sin setup).
 3. **Técnico demo:** keypair local; no es modelo de producción.
 4. **Sin indexer:** no hay listado global off-chain de todos los activos.
+5. **Evidencia:** requiere `VITE_SUPABASE_FUNCTIONS_URL` apuntando a la Edge Function deployada; sin ella la UI oculta el uploader.
 
 ---
 

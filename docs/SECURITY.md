@@ -32,9 +32,18 @@ Security considerations for the current Devnet implementation and guidance towar
 
 - Users may attempt transactions without enough lamports
 
-### 4.4 Off-chain metadata limitations
+### 4.4 Off-chain metadata (Supabase)
 
-- Asset names/locations in localStorage can be lost or manipulated client-side
+- Asset metadata in Supabase (`assets` table) is public-read in demo; production should enforce hospital-scoped RLS.
+- Evidence integrity relies on SHA-256 hash stored at upload (`evidence_hash`) and verified client-side before approval (SEC-03).
+- Edge Function `evidence` is the sole writer; it verifies on-chain tx before insert (TD-08).
+
+### 4.5 Supabase dependency risk
+
+- Off-chain metadata and evidence storage depend on Supabase availability and correct RLS/policies.
+- Misconfigured RLS or exposed service role key could allow unauthorized writes/reads.
+- Edge Function must be deployed and `VITE_SUPABASE_FUNCTIONS_URL` set; otherwise evidence flow is disabled.
+- Supabase project is a centralized dependency — consider failover/backup strategy for production.
 
 ## 5. Security Best Practices
 
