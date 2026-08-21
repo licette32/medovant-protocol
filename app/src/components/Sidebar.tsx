@@ -13,11 +13,11 @@ export default function Sidebar() {
   const { t } = useLang()
 
   const navItems = [
-    { label: t('dashboard'), icon: LayoutDashboard },
-    { label: t('equipment'), icon: Stethoscope },
-    { label: t('technicians'), icon: Wrench },
-    { label: t('history'), icon: History },
-    { label: t('transactions'), icon: ArrowLeftRight },
+    { label: t('dashboard'), icon: LayoutDashboard, disabled: false },
+    { label: t('equipment'), icon: Stethoscope, disabled: true },
+    { label: t('technicians'), icon: Wrench, disabled: true },
+    { label: t('history'), icon: History, disabled: true },
+    { label: t('transactions'), icon: ArrowLeftRight, disabled: true },
   ]
 
   return (
@@ -117,6 +117,7 @@ export default function Sidebar() {
 
       {navItems.map((item, i) => {
         const Icon = item.icon
+        const isFirst = i === 0
         return (
           <div
             key={`${item.label}-${i}`}
@@ -124,18 +125,31 @@ export default function Sidebar() {
               display: 'flex',
               alignItems: 'center',
               gap: '9px',
-              padding: i === 0 ? '8px 10px 8px 8px' : '8px 10px',
-              borderRadius: i === 0 ? '0 6px 6px 0' : '6px',
-              borderLeft: i === 0 ? '2px solid var(--green)' : 'none',
-              background: i === 0 ? 'var(--green-d)' : 'transparent',
-              color: i === 0 ? 'var(--green)' : 'var(--text2)',
+              padding: isFirst ? '8px 10px 8px 8px' : '8px 10px',
+              borderRadius: isFirst ? '0 6px 6px 0' : '6px',
+              borderLeft: isFirst ? '2px solid var(--green)' : 'none',
+              background: isFirst ? 'var(--green-d)' : 'transparent',
+              color: isFirst ? 'var(--green)' : item.disabled
+                ? 'var(--text2)'
+                : 'var(--text2)',
               fontSize: '13px',
-              fontWeight: i === 0 ? 500 : 400,
-              cursor: 'pointer',
+              fontWeight: isFirst ? 500 : 400,
+              cursor: isFirst || !item.disabled ? 'pointer' : 'default',
             }}
           >
             <Icon size={14} />
-            {item.label}
+            {item.label}{item.disabled && (
+              <span
+                style={{
+                  fontSize: '10px',
+                  marginLeft: '4px',
+                  color: 'var(--text3)',
+                  opacity: 0.7,
+                }}
+              >
+                {t('comingSoon')}
+              </span>
+            )}
           </div>
         )
       })}
