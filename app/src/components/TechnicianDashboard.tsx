@@ -113,6 +113,28 @@ export default function TechnicianDashboard({ program, publicKey, onTxSuccess, a
     }
   }, [program, publicKey])
 
+  const retryAvailableJobs = useCallback(async () => {
+    setJobsError(false)
+    try {
+      const assets = await fetchAllAssets(program)
+      setAvailableJobs(
+        assets
+          .filter((a) => a.status === 'Issue Reported')
+          .map((a) => ({
+            id: `${a.hospital}-${a.id}`,
+            assetId: a.id,
+            asset: a.name,
+            hospital: a.hospital ?? '',
+            reward: `${lamportsToSolString(a.maintenanceReward)} SOL`,
+          }))
+      )
+    } catch {
+      setJobsError(true)
+    } finally {
+      setJobsLoading(false)
+    }
+  }, [program, publicKey])
+
   useEffect(() => {
     void fetchAvailableJobs()
   }, [fetchAvailableJobs])
@@ -355,6 +377,21 @@ export default function TechnicianDashboard({ program, publicKey, onTxSuccess, a
                 <tr>
                   <td colSpan={5} style={{ padding: '14px 16px', color: 'var(--red)' }}>
                     {t('loadAssetsError')}
+                    <button
+                      onClick={() => void retryAvailableJobs()}
+                      style={{
+                        marginLeft: '8px',
+                        background: 'var(--cyan-d)',
+                        border: '1px solid var(--cyan-b)',
+                        color: 'var(--cyan)',
+                        borderRadius: '6px',
+                        padding: '4px 14px',
+                        fontSize: '12px',
+                        fontWeight: 500,
+                      }}
+                    >
+                      {t('retry')}
+                    </button>
                   </td>
                 </tr>
               )}
