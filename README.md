@@ -159,6 +159,15 @@ Anchor Program ── 5JMd8ADy1KHBhohX6NLbz6WQdyCQTfLd55Gmzo2r34WD
 | `complete_maintenance` | 🏥 + 🔧 Ambos | Doble firma · libera escrow · reputación +1 |
 | `decommission_asset` | 🏥 Hospital | Cierra PDA · rent devuelto al hospital |
 
+### Dual-Wallet `complete_maintenance` (PST Hand-Off)
+
+`complete_maintenance` requires **two distinct wallets** (hospital pays fees, technician executes). The protocol uses a **Partially Signed Transaction (PST) hand-off** so neither party shares their private key:
+
+- Hospital builds & partially signs → exports JSON payload
+- Technician verifies (re-derives PDAs, checks invariants) → adds signature → submits
+
+Details: [`docs/PST_HANDOFF.md`](docs/PST_HANDOFF.md)
+
 ---
 
 ## Mecanismo de escrow
