@@ -48,6 +48,15 @@ Dos modos diferenciados dentro de la misma aplicación:
 | `complete_maintenance` | hospital + técnico | invoke_signed libera SOL, jobs_completed++ |
 | `decommission_asset` | hospital | Cierra Asset PDA, devuelve rent |
 
+#### Dual-Wallet `complete_maintenance` (PST Hand-Off)
+
+Since **v1.0** the `complete_maintenance` instruction requires **two distinct signers** (hospital + technician). To avoid sharing private keys, the protocol uses a **Partially Signed Transaction (PST) hand-off**:
+
+1. **Hospital** builds the tx, signs partially (fee payer), exports JSON payload.
+2. **Technician** imports payload, re-derives all PDAs from trusted fields, verifies invariants, adds their signature, submits.
+
+Full specification: [`docs/PST_HANDOFF.md`](PST_HANDOFF.md)
+
 #### PDAs (Program Derived Addresses)
 
 **Asset PDA**
