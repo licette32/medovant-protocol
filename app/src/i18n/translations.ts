@@ -7,6 +7,7 @@ export const translations = {
     history: 'History',
     transactions: 'Transactions',
     escrowProtocol: 'Escrow Protocol',
+    comingSoon: 'Coming soon',
     // Topbar
     overview: 'Overview',
     subtitle: 'Hospital dashboard — equipment maintenance protocol',
@@ -244,6 +245,7 @@ export const translations = {
     history: 'Historial',
     transactions: 'Transacciones',
     escrowProtocol: 'Protocolo de Garantía',
+    comingSoon: 'Próximamente',
     // Topbar
     overview: 'Resumen',
     subtitle: 'Panel hospitalario — protocolo de mantenimiento de equipos',
