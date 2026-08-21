@@ -52,36 +52,50 @@ Seeds must remain exactly aligned with on-chain program logic.
 - Rejected while an issue is pending (`AssetHasPendingEscrow`): the escrow would be orphaned
 - Result: leftover vault lamports drained to the hospital, account closed/decommissioned
 
-## 5. Data Model Notes
+## 5. Off-Chain Data (Supabase)
 
-- On-chain: status, counters, maintenance reward, authority
-- Off-chain (UI only): asset name/location in browser localStorage
+### 5.1 Asset Metadata (`assets` table)
 
-### 5.1 Evidence submission (Supabase Edge Function, TD-08)
+- Stored in Supabase Postgres (table `public.assets`), shared across users/devices.
+- Client: `utils/assetMetadata.ts` — `getAssetMeta`, `getAssetDisplayName`, `upsertAssetMeta`, `hydrateAssetMetadata`.
+- Fallback: if `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` not set, uses `localStorage` (demo mode).
+- RLS: public read/insert/update (demo); production should restrict to hospital owner.
 
-- Evidence is submitted **after** `complete_maintenance` lands on-chain (never before).
-- The frontend calls `POST {VITE_SUPABASE_FUNCTIONS_URL}/evidence` with multipart form data:
+### 5.2 Maintenance Evidence (`maintenance_events` + Storage)
+
+- Evidence submitted **after** `complete_maintenance` lands on-chain (never before).
+- Frontend calls `POST {VITE_SUPABASE_FUNCTIONS_URL}/evidence` with multipart form data:
   `file`, `assetPda`, `hospital`, `technician`, `txSignature`.
-- The function verifies against the devnet RPC that the tx exists and succeeded,
-  invoked the medovant program (`5JMd8ADy1KHBhohX6NLbz6WQdyCQTfLd55Gmzo2r34WD`),
-  touched the claimed `assetPda`, and was signed by `technician`. Only then it
-  uploads the file and inserts the `maintenance_events` row (service role).
-- RLS: `maintenance_events` has **no** anon insert/update policy; anon `select` is
-  limited to rows with `tx_signature is not null`. The `evidence` bucket is
-  read-public, write-denied to anon.
-- Rejections: `403` with `{ error }` for unverified transactions.
+- Edge Function (`supabase/functions/evidence`) verifies against devnet RPC:
+  1. tx exists and succeeded (`meta.err == null`)
+  2. Medovant program (`5JMd8ADy1KHBhohX6NLbz6WQdyCQTfLd55Gmzo2r34WD`) invoked
+  3. `assetPda` appears in tx accounts
+  4. `technician` signed the tx
+- If verified: uploads file to `evidence` bucket, inserts `maintenance_events` row with service role, stores SHA-256 as `evidence_hash`.
+- RLS: `maintenance_events` — anon `select` only where `tx_signature is not null`; **no** anon insert/update. Bucket `evidence` — public read, anon write denied.
+- Client: `utils/evidence.ts` — `submitEvidence`, `fetchEvidenceForAsset`, `verifyEvidenceIntegrity`, `isEvidenceConfigured`.
 
-## 6. Integration Examples
+## 6. Required Environment Variables
 
-### 6.1 Frontend hook usage
+| Variable | Description | Required |
+|----------|-------------|----------|
+| `VITE_SUPABASE_URL` | Supabase project URL | Yes (for off-chain features) |
+| `VITE_SUPABASE_ANON_KEY` | Supabase anon key | Yes (for off-chain features) |
+| `VITE_SUPABASE_FUNCTIONS_URL` | Edge Functions base URL (e.g., `https://<ref>.functions.supabase.co`) | For evidence upload |
+
+Without Supabase env vars, the app runs in **demo mode** using `localStorage` for asset metadata and hides evidence features.
+
+## 7. Integration Examples
+
+### 7.1 Frontend hook usage
 
 Use `useProgram` in app code and call methods through Anchor `program.methods...`.
 
-### 6.2 Error handling
+### 7.2 Error handling
 
 Use `toastAnchorTxError` pattern and transaction log extraction when available.
 
-## 7. Compatibility
+## 8. Compatibility
 
 - Keep IDL in sync after each deploy
 - Validate Program ID and account seeds before release
