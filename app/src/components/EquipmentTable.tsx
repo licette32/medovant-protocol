@@ -544,12 +544,15 @@ export default function EquipmentTable({
 
         {activeModal && (
           <div
-            className="border-t border-med"
-            style={{
-              padding: '20px',
-              background: 'var(--surface2)',
-            }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+            role="dialog"
+            aria-modal="true"
+            onClick={closeModal}
           >
+            <div
+              className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-[var(--radius)] border border-med bg-surface p-6 shadow-med"
+              onClick={(e) => e.stopPropagation()}
+            >
             {activeModal.type === 'register' && (
               <div
                 style={{
@@ -801,6 +804,7 @@ export default function EquipmentTable({
                 </div>
               </div>
             )}
+            </div>
           </div>
         )}
       </section>
