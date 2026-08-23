@@ -18,6 +18,7 @@
     "@supabase/supabase-js": "^2.109.0",
     "@tanstack/react-query": "^5.83.0",
     "bn.js": "^5.2.1",
+    "buffer": "^6.0.3",
     "clsx": "^2.1.1",
     "lucide-react": "^0.577.0",
     "react": "^18.3.1",
