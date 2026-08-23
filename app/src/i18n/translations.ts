@@ -151,6 +151,8 @@ export const translations = {
     techSelectJob: 'Job',
     techNoJobs: 'No available jobs',
     techSelectJobRequired: 'Select a job first',
+    techFlowDirect: 'Complete a job',
+    techFlowHandoff: 'I have a code from the hospital',
     dualSigningPending:
       'This job belongs to another hospital and needs their signature too. Dual-wallet signing lands with the partial-transaction hand-off (issue #14).',
     pstTitle: 'Two-party signing (partially-signed tx)',
@@ -390,6 +392,8 @@ export const translations = {
     techSelectJob: 'Trabajo',
     techNoJobs: 'No hay trabajos disponibles',
     techSelectJobRequired: 'Seleccioná un trabajo primero',
+    techFlowDirect: 'Completar un trabajo',
+    techFlowHandoff: 'Tengo un código del hospital',
     dualSigningPending:
       'Este trabajo pertenece a otro hospital y también necesita su firma. La firma dual llega con el hand-off de transacción parcial (issue #14).',
     pstTitle: 'Firma doble (transacción parcialmente firmada)',

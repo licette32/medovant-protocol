@@ -51,6 +51,8 @@ export default function TechnicianDashboard({ program, publicKey, onTxSuccess, a
   const [jobsError, setJobsError] = useState(false)
   const [loading, setLoading] = useState(false)
   const [completeSig, setCompleteSig] = useState<string | null>(null)
+  /** Which completion path is shown: direct sign, or hospital hand-off payload (#55). */
+  const [flow, setFlow] = useState<'direct' | 'handoff'>('direct')
   // Marks a selectedJobId change as synthetic (auto-reassign after a jobs
   // refresh), not a user action.
   const autoSelectedJob = useRef(false)
@@ -492,77 +494,119 @@ export default function TechnicianDashboard({ program, publicKey, onTxSuccess, a
       >
         <h3 style={{ margin: 0, fontSize: '14px', fontWeight: 600, color: 'var(--text)' }}>{t('completeMaintenance')}</h3>
         <p style={{ margin: '6px 0 14px', fontSize: '13px', color: 'var(--text2)' }}>{t('techCompleteDesc')}</p>
-        {evidenceConfigured && (
-          <div style={{ marginBottom: '12px' }}>
-            <EvidenceUploader
-              assetPda={selectedAssetPda ?? ''}
-              hospital={selectedJob?.hospital ?? ''}
-              technician={publicKey ? publicKey.toBase58() : ''}
-              disabled={!selectedJob || loading}
-              txSignature={completeSig}
-              onUploaded={() => toast.success(t('evidenceUploaded'))}
-            />
-          </div>
+        <div role="tablist" style={{ display: 'flex', gap: '8px', marginBottom: '14px' }}>
+          {(
+            [
+              ['direct', t('techFlowDirect')],
+              ['handoff', t('techFlowHandoff')],
+            ] as const
+          ).map(([key, label]) => {
+            const active = flow === key
+            return (
+              <button
+                key={key}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                onClick={() => setFlow(key)}
+                style={{
+                  background: active ? 'var(--cyan-d)' : 'var(--surface2)',
+                  border: `1px solid ${active ? 'var(--cyan-b)' : 'var(--border)'}`,
+                  color: active ? 'var(--cyan)' : 'var(--text2)',
+                  borderRadius: '999px',
+                  padding: '6px 16px',
+                  fontSize: '13px',
+                  fontWeight: active ? 600 : 500,
+                  cursor: 'pointer',
+                }}
+              >
+                {label}
+              </button>
+            )
+          })}
+        </div>
+        {flow === 'direct' && (
+          <>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'flex-end' }}>
+              <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: '1 1 260px' }}>
+                <span style={{ fontSize: '13px', color: 'var(--text2)' }}>{t('techSelectJob')}</span>
+                <select
+                  value={selectedJobId}
+                  onChange={(e) => setSelectedJobId(e.target.value)}
+                  disabled={availableJobs.length === 0 || loading}
+                  style={{
+                    background: 'var(--surface2)',
+                    border: '1px solid var(--border)',
+                    borderRadius: '6px',
+                    padding: '8px 12px',
+                    color: 'var(--text)',
+                    fontFamily: 'Inter, system-ui, sans-serif',
+                    fontSize: '13px',
+                    width: '100%',
+                  }}
+                >
+                  {availableJobs.length === 0 && (
+                    <option value="">{t('techNoJobs')}</option>
+                  )}
+                  {availableJobs.map((job) => (
+                    <option key={job.id} value={job.id}>
+                      #{job.assetId} — {job.asset} · {job.hospital ? truncatePubkey(job.hospital) : '—'}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <button
+                type="button"
+                disabled={loading || !selectedJob}
+                onClick={() => void runCompleteMaintenance(selectedJob)}
+                style={{
+                  background: 'var(--cyan-d)',
+                  border: '1px solid var(--cyan-b)',
+                  color: 'var(--cyan)',
+                  borderRadius: '6px',
+                  padding: '8px 18px',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  cursor: loading ? 'wait' : 'pointer',
+                  opacity: loading || !selectedJob ? 0.7 : 1,
+                }}
+              >
+                {loading ? t('submitting') : t('completeAndEarn')}
+              </button>
+            </div>
+            {/*
+              Evidence only appears once a job is selected (#55). completeSig keeps it
+              mounted through the post-completion jobs refresh so the deferred upload
+              (fired when txSignature arrives) never loses its target.
+            */}
+            {evidenceConfigured && (selectedJob || completeSig) && (
+              <div style={{ marginTop: '12px' }}>
+                <EvidenceUploader
+                  assetPda={selectedAssetPda ?? ''}
+                  hospital={selectedJob?.hospital ?? ''}
+                  technician={publicKey ? publicKey.toBase58() : ''}
+                  disabled={!selectedJob || loading}
+                  txSignature={completeSig}
+                  onUploaded={() => toast.success(t('evidenceUploaded'))}
+                />
+              </div>
+            )}
+          </>
         )}
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'flex-end' }}>
-          <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: '1 1 260px' }}>
-            <span style={{ fontSize: '13px', color: 'var(--text2)' }}>{t('techSelectJob')}</span>
-            <select
-              value={selectedJobId}
-              onChange={(e) => setSelectedJobId(e.target.value)}
-              disabled={availableJobs.length === 0 || loading}
-              style={{
-                background: 'var(--surface2)',
-                border: '1px solid var(--border)',
-                borderRadius: '6px',
-                padding: '8px 12px',
-                color: 'var(--text)',
-                fontFamily: 'Inter, system-ui, sans-serif',
-                fontSize: '13px',
-                width: '100%',
-              }}
-            >
-              {availableJobs.length === 0 && (
-                <option value="">{t('techNoJobs')}</option>
-              )}
-              {availableJobs.map((job) => (
-                <option key={job.id} value={job.id}>
-                  #{job.assetId} — {job.asset} · {job.hospital ? truncatePubkey(job.hospital) : '—'}
-                </option>
-              ))}
-            </select>
-          </label>
-          <button
-            type="button"
-            disabled={loading || !selectedJob}
-            onClick={() => void runCompleteMaintenance(selectedJob)}
-            style={{
-              background: 'var(--cyan-d)',
-              border: '1px solid var(--cyan-b)',
-              color: 'var(--cyan)',
-              borderRadius: '6px',
-              padding: '8px 18px',
-              fontSize: '13px',
-              fontWeight: 600,
-              cursor: loading ? 'wait' : 'pointer',
-              opacity: loading || !selectedJob ? 0.7 : 1,
+        {/* Hand-off flow stays mounted so a pasted payload survives tab switches. */}
+        <div style={{ display: flow === 'handoff' ? 'block' : 'none' }}>
+          <PstPanel
+            program={program}
+            publicKey={publicKey}
+            mode="technician"
+            onTxSuccess={onTxSuccess}
+            onDone={async () => {
+              await fetchAvailableJobs()
+              await refreshProfile()
             }}
-          >
-            {loading ? t('submitting') : t('completeAndEarn')}
-          </button>
+          />
         </div>
       </section>
-
-      <PstPanel
-        program={program}
-        publicKey={publicKey}
-        mode="technician"
-        onTxSuccess={onTxSuccess}
-        onDone={async () => {
-          await fetchAvailableJobs()
-          await refreshProfile()
-        }}
-      />
 
       <ActivityFeed items={earningsItems} headerTitle={t('earningsHistory')} headerDesc={null} />
     </div>
