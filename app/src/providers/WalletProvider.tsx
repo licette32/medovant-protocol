@@ -6,7 +6,9 @@ import { clusterApiUrl } from '@solana/web3.js'
 import '@solana/wallet-adapter-react-ui/styles.css'
 
 /** Devnet RPC — same cluster the Medovant program is deployed for in this dashboard. */
-const endpoint = clusterApiUrl('devnet')
+const DEFAULT_DEVNET_RPC = clusterApiUrl('devnet')
+
+const endpoint = import.meta.env.VITE_RPC_URL ?? DEFAULT_DEVNET_RPC
 const wallets = [new PhantomWalletAdapter(), new SolflareWalletAdapter()]
 
 export function SolanaWalletProvider({ children }: { children: ReactNode }) {
