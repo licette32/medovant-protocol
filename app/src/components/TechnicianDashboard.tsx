@@ -1,7 +1,7 @@
 import type { Program } from '@coral-xyz/anchor'
 import BN from 'bn.js'
 import { PublicKey, SystemProgram } from '@solana/web3.js'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { useLang } from '@/i18n/LangContext'
 import { showTxToast } from '@/components/Toast'
@@ -51,6 +51,9 @@ export default function TechnicianDashboard({ program, publicKey, onTxSuccess, a
   const [jobsError, setJobsError] = useState(false)
   const [loading, setLoading] = useState(false)
   const [completeSig, setCompleteSig] = useState<string | null>(null)
+  // Marks a selectedJobId change as synthetic (auto-reassign after a jobs
+  // refresh), not a user action.
+  const autoSelectedJob = useRef(false)
 
   const selectedJob = availableJobs.find((j) => j.id === selectedJobId) ?? null
   const evidenceConfigured = isEvidenceConfigured()
@@ -145,11 +148,20 @@ export default function TechnicianDashboard({ program, publicKey, onTxSuccess, a
 
   useEffect(() => {
     if (availableJobs.length > 0 && !availableJobs.some((j) => j.id === selectedJobId)) {
+      autoSelectedJob.current = true
       setSelectedJobId(availableJobs[0].id)
     }
   }, [availableJobs, selectedJobId])
 
   useEffect(() => {
+    // TD-08 race: right after complete_maintenance lands, fetchAvailableJobs()
+    // drops the finished job, the auto-select above reassigns selectedJobId,
+    // and clearing completeSig here killed the pending evidence upload before
+    // EvidenceUploader could fire. Only user-driven job switches reset it.
+    if (autoSelectedJob.current) {
+      autoSelectedJob.current = false
+      return
+    }
     setCompleteSig(null)
   }, [selectedJobId])
 
