@@ -98,16 +98,36 @@ export default function EvidenceUploader({
         style={{ display: 'none' }}
       />
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '10px' }}>
-        {preview ? (
+        {file ? (
           <>
-            <img
-              src={preview.url}
-              alt={preview.name}
-              style={{ width: '44px', height: '44px', objectFit: 'cover', borderRadius: '6px', border: '1px solid var(--border)' }}
-            />
-            <span style={{ fontSize: '13px', color: 'var(--text)', fontWeight: 500 }}>{preview.name}</span>
+            {preview ? (
+              <img
+                src={preview.url}
+                alt={preview.name}
+                style={{ width: '44px', height: '44px', objectFit: 'cover', borderRadius: '6px', border: '1px solid var(--border)' }}
+              />
+            ) : (
+              <div
+                aria-hidden
+                style={{
+                  width: '44px',
+                  height: '44px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  borderRadius: '6px',
+                  border: '1px solid var(--border)',
+                  background: 'var(--surface3)',
+                  fontSize: '18px',
+                }}
+              >
+                📄
+              </div>
+            )}
+            <span style={{ fontSize: '13px', color: 'var(--text)', fontWeight: 500 }}>{file.name}</span>
             <button
               type="button"
+              disabled={uploading}
               onClick={() => {
                 setFile(null)
                 setPreview(null)
@@ -120,11 +140,12 @@ export default function EvidenceUploader({
                 borderRadius: '6px',
                 padding: '4px 10px',
                 fontSize: '12px',
-                cursor: 'pointer',
+                cursor: uploading ? 'wait' : 'pointer',
               }}
             >
               {t('evidenceRemove')}
             </button>
+            <span style={{ fontSize: '12px', color: 'var(--text3)' }}>{t('evidenceDeferred')}</span>
           </>
         ) : (
           <>
