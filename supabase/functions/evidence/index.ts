@@ -45,6 +45,29 @@ async function rpc(method: string, params: unknown[]): Promise<unknown> {
   return body.result
 }
 
+type ConfirmedTx = {
+  meta?: { err?: unknown; logMessages?: string[] }
+  transaction?: { message?: { accountKeys?: unknown; header?: { numRequiredSignatures?: number } } }
+}
+
+// A freshly-confirmed tx can take a few seconds to become readable through
+// the RPC the function queries; one lookup is not enough to conclude failure.
+const TX_LOOKUP_ATTEMPTS = 5
+const TX_LOOKUP_DELAY_MS = 1500
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+async function fetchConfirmedTx(sig: string): Promise<ConfirmedTx | null> {
+  for (let attempt = 0; attempt < TX_LOOKUP_ATTEMPTS; attempt++) {
+    const tx = (await rpc('getTransaction', [sig, { encoding: 'jsonParsed', maxSupportedTransactionVersion: 0 }])) as ConfirmedTx | null
+    if (tx) return tx
+    if (attempt < TX_LOOKUP_ATTEMPTS - 1) await sleep(TX_LOOKUP_DELAY_MS)
+  }
+  return null
+}
+
 async function verifyMaintenanceTx(params: {
   txSignature: string
   assetPda: string
@@ -55,16 +78,15 @@ async function verifyMaintenanceTx(params: {
     return { ok: false, error: 'Invalid transaction signature' }
   }
 
-  let tx: {
-    meta?: { err?: unknown; logMessages?: string[] }
-    transaction?: { message?: { accountKeys?: unknown; header?: { numRequiredSignatures?: number } } }
-  }
+  let tx: ConfirmedTx
   try {
-    tx = (await rpc('getTransaction', [sig, { encoding: 'jsonParsed', maxSupportedTransactionVersion: 0 }])) as typeof tx
+    tx = await fetchConfirmedTx(sig)
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : 'Transaction lookup failed' }
   }
-  if (!tx) return { ok: false, error: 'Transaction not found or not confirmed yet' }
+  if (!tx) {
+    return { ok: false, error: 'Transaction is still confirming — wait a few seconds and attach the evidence again' }
+  }
   if (tx.meta?.err) return { ok: false, error: 'Transaction failed on-chain' }
 
   const logs: string[] = Array.isArray(tx.meta?.logMessages) ? tx.meta.logMessages : []
