@@ -56,6 +56,8 @@ export default function TechnicianDashboard({ program, publicKey, onTxSuccess, a
   // Marks a selectedJobId change as synthetic (auto-reassign after a jobs
   // refresh), not a user action.
   const autoSelectedJob = useRef(false)
+  /** Scroll target: the Complete Maintenance card, revealed when picking a job from the table (#55 follow-up). */
+  const completeCardRef = useRef<HTMLElement | null>(null)
 
   const selectedJob = availableJobs.find((j) => j.id === selectedJobId) ?? null
   const evidenceConfigured = isEvidenceConfigured()
@@ -343,10 +345,16 @@ export default function TechnicianDashboard({ program, publicKey, onTxSuccess, a
             padding: '16px',
           }}
         >
-          <div style={{ fontSize: '13px', color: 'var(--text2)' }}>{t('nextRewardLabel')}</div>
-          <div style={{ fontSize: '24px', fontWeight: 600, color: 'var(--text)' }}>—</div>
-          <div style={{ fontSize: '13px', color: 'var(--text3)', marginTop: '6px' }}>{t('nextRewardSub')}</div>
+        <div style={{ fontSize: '13px', color: 'var(--text2)' }}>{t('nextRewardLabel')}</div>
+        <div style={{ fontSize: '24px', fontWeight: 600, color: 'var(--text)', fontFamily: 'DM Mono, monospace' }}>
+          {availableJobs.length > 0 ? availableJobs[0].reward : '—'}
         </div>
+        <div style={{ fontSize: '13px', color: 'var(--text3)', marginTop: '6px' }}>
+          {availableJobs.length > 0
+            ? `${availableJobs.length} ${lang === 'es' ? 'trabajos abiertos' : 'open jobs'}`
+            : t('nextRewardSub')}
+        </div>
+      </div>
       </div>
 
       <section
@@ -457,10 +465,19 @@ export default function TechnicianDashboard({ program, publicKey, onTxSuccess, a
                     </span>
                   </td>
                   <td style={{ padding: '12px 16px' }}>
+                    {/*
+                      Selects the job for the Complete Maintenance card instead of
+                      firing the tx from the table — completion (escrow release)
+                      stays a single, deliberate action with evidence attached.
+                    */}
                     <button
                       type="button"
                       disabled={loading}
-                      onClick={() => void runCompleteMaintenance(row)}
+                      onClick={() => {
+                        setSelectedJobId(row.id)
+                        setFlow('direct')
+                        completeCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                      }}
                       style={{
                         background: 'var(--cyan-d)',
                         border: '1px solid var(--cyan-b)',
@@ -473,7 +490,7 @@ export default function TechnicianDashboard({ program, publicKey, onTxSuccess, a
                         opacity: loading ? 0.7 : 1,
                       }}
                     >
-                      {loading ? t('submitting') : t('btnComplete')}
+                      {t('techTakeJob')}
                     </button>
                   </td>
                 </tr>
@@ -484,6 +501,7 @@ export default function TechnicianDashboard({ program, publicKey, onTxSuccess, a
       </section>
 
       <section
+        ref={completeCardRef}
         style={{
           background: 'var(--surface)',
           border: '1px solid var(--cyan-b)',
