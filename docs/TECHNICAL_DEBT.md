@@ -6,12 +6,30 @@ Cada item tiene un id (`TD-xx`), estado y referencia al issue de GitHub cuando e
 | ID | Tema | Estado |
 |----|------|--------|
 | TD-01 | Indexer on-chain → off-chain | Abierto (issue separado) |
-| TD-02 | Metadata en localStorage en vez de Supabase | Abierto |
+| TD-02 | Metadata en localStorage en vez de Supabase | Cerrado (#69) — código en Supabase; riesgo residual: env vars de deploy |
 | TD-03 | Discovery loop 1-10 con `getProgramAccounts` | Abierto |
 | TD-03b | PST: transacción parcialmente firmada (hand-off hospital ↔ técnico) | Implementado (#14) |
 | TD-04 | Modelo de confianza de la evidencia off-chain | Cerrado por el modelo Edge Function (ver abajo) |
 | TD-05 | Ventana de disputa / cancelación de reporte | Abierto (candidato v1.2) |
 | TD-08 | RLS abiertas en `maintenance_events` y bucket `evidence` | Cerrado (#26) |
+
+---
+
+## TD-02 — Metadata de activos: localStorage → Supabase
+
+Cerrado a nivel de código
+([#69](https://github.com/licette32/medovant-protocol/issues/69)): la metadata de
+activos vive en la tabla `assets` de Supabase, escrita y leída vía
+`utils/assetMetadata.ts` (`upsertAssetMeta`, `hydrateAssetMetadata`, con migración
+one-time desde localStorage por hospital). El store legacy queda únicamente como
+fallback de demo cuando faltan `VITE_SUPABASE_URL` /
+`VITE_SUPABASE_ANON_KEY`.
+
+Riesgo residual asumido: es de **configuración de deploy, no de código**. Las env
+vars ya están configuradas en Vercel; el escenario de regresión es un redeploy o
+proyecto nuevo sin ellas, donde la app degrada silenciosamente a `localStorage`.
+Mitigación operativa: verificarlas tras cada cambio de proyecto/deploy (ver
+`docs/DEPLOYMENT.md`).
 
 ---
 
