@@ -47,6 +47,8 @@ export default function TechnicianDashboard({ program, publicKey, onTxSuccess, a
   const [totalEarnedLamports, setTotalEarnedLamports] = useState<string>('0')
   const [availableJobs, setAvailableJobs] = useState<AvailableJob[]>([])
   const [selectedJobId, setSelectedJobId] = useState('')
+  /** Jobs the technician marked as theirs this session (#55 follow-up / assignment UX). */
+  const [assignedJobIds, setAssignedJobIds] = useState<string[]>([])
   const [jobsLoading, setJobsLoading] = useState(false)
   const [jobsError, setJobsError] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -60,6 +62,7 @@ export default function TechnicianDashboard({ program, publicKey, onTxSuccess, a
   const completeCardRef = useRef<HTMLElement | null>(null)
 
   const selectedJob = availableJobs.find((j) => j.id === selectedJobId) ?? null
+  const assignedJobs = availableJobs.filter((j) => assignedJobIds.includes(j.id))
   const evidenceConfigured = isEvidenceConfigured()
 
   const selectedAssetPda = selectedJob
@@ -102,17 +105,18 @@ export default function TechnicianDashboard({ program, publicKey, onTxSuccess, a
     setJobsError(false)
     try {
       const assets = await fetchAllAssets(program)
-      setAvailableJobs(
-        assets
-          .filter((a) => a.status === 'Issue Reported')
-          .map((a) => ({
-            id: `${a.hospital}-${a.id}`,
-            assetId: a.id,
-            asset: a.name,
-            hospital: a.hospital ?? '',
-            reward: `${lamportsToSolString(a.maintenanceReward)} SOL`,
-          }))
-      )
+      const jobs = assets
+        .filter((a) => a.status === 'Issue Reported')
+        .map((a) => ({
+          id: `${a.hospital}-${a.id}`,
+          assetId: a.id,
+          asset: a.name,
+          hospital: a.hospital ?? '',
+          reward: `${lamportsToSolString(a.maintenanceReward)} SOL`,
+        }))
+      setAvailableJobs(jobs)
+      // Drop assignments for jobs that no longer exist (e.g. just completed).
+      setAssignedJobIds((prev) => prev.filter((id) => jobs.some((j) => j.id === id)))
     } catch {
       setJobsError(true)
     } finally {
@@ -128,17 +132,17 @@ export default function TechnicianDashboard({ program, publicKey, onTxSuccess, a
     setJobsError(false)
     try {
       const assets = await fetchAllAssets(program)
-      setAvailableJobs(
-        assets
-          .filter((a) => a.status === 'Issue Reported')
-          .map((a) => ({
-            id: `${a.hospital}-${a.id}`,
-            assetId: a.id,
-            asset: a.name,
-            hospital: a.hospital ?? '',
-            reward: `${lamportsToSolString(a.maintenanceReward)} SOL`,
-          }))
-      )
+      const jobs = assets
+        .filter((a) => a.status === 'Issue Reported')
+        .map((a) => ({
+          id: `${a.hospital}-${a.id}`,
+          assetId: a.id,
+          asset: a.name,
+          hospital: a.hospital ?? '',
+          reward: `${lamportsToSolString(a.maintenanceReward)} SOL`,
+        }))
+      setAvailableJobs(jobs)
+      setAssignedJobIds((prev) => prev.filter((id) => jobs.some((j) => j.id === id)))
     } catch {
       setJobsError(true)
     } finally {
@@ -151,11 +155,29 @@ export default function TechnicianDashboard({ program, publicKey, onTxSuccess, a
   }, [fetchAvailableJobs])
 
   useEffect(() => {
-    if (availableJobs.length > 0 && !availableJobs.some((j) => j.id === selectedJobId)) {
+    // Keep the dropdown pointing at a job the technician actually holds.
+    if (assignedJobs.length > 0 && !assignedJobs.some((j) => j.id === selectedJobId)) {
       autoSelectedJob.current = true
-      setSelectedJobId(availableJobs[0].id)
+      setSelectedJobId(assignedJobs[0].id)
     }
-  }, [availableJobs, selectedJobId])
+  }, [availableJobs, assignedJobIds, selectedJobId])
+
+  /** Assign/release a job from the table row (#55 follow-up). */
+  const toggleAssignment = useCallback(
+    (row: AvailableJob) => {
+      const isAssigned = assignedJobIds.includes(row.id)
+      if (isAssigned) {
+        setAssignedJobIds((prev) => prev.filter((id) => id !== row.id))
+        if (selectedJobId === row.id) setSelectedJobId('')
+        return
+      }
+      setAssignedJobIds((prev) => [...prev, row.id])
+      setSelectedJobId(row.id)
+      setFlow('direct')
+      completeCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    },
+    [assignedJobIds, selectedJobId]
+  )
 
   useEffect(() => {
     // TD-08 race: right after complete_maintenance lands, fetchAvailableJobs()
@@ -428,8 +450,17 @@ export default function TechnicianDashboard({ program, publicKey, onTxSuccess, a
                   </td>
                 </tr>
               )}
-              {availableJobs.map((row) => (
-                <tr key={row.id} style={{ borderBottom: '1px solid var(--border)', color: 'var(--text)' }}>
+              {availableJobs.map((row) => {
+                const isAssigned = assignedJobIds.includes(row.id)
+                return (
+                <tr
+                  key={row.id}
+                  style={{
+                    borderBottom: '1px solid var(--border)',
+                    color: 'var(--text)',
+                    background: isAssigned ? 'var(--cyan-d)' : undefined,
+                  }}
+                >
                   <td style={{ padding: '12px 16px' }}>
                     <div style={{ fontWeight: 600, fontSize: '14px', color: 'var(--text)' }}>{row.asset}</div>
                     <div
@@ -450,38 +481,51 @@ export default function TechnicianDashboard({ program, publicKey, onTxSuccess, a
                     {row.reward}
                   </td>
                   <td style={{ padding: '12px 16px' }}>
-                    <span
-                      style={{
-                        fontSize: '13px',
-                        fontWeight: 500,
-                        padding: '3px 8px',
-                        borderRadius: '999px',
-                        background: 'var(--amber-d)',
-                        border: '1px solid var(--amber-b)',
-                        color: 'var(--amber)',
-                      }}
-                    >
-                      {t('statusIssue')}
-                    </span>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-start' }}>
+                      <span
+                        style={{
+                          fontSize: '13px',
+                          fontWeight: 500,
+                          padding: '3px 8px',
+                          borderRadius: '999px',
+                          background: 'var(--amber-d)',
+                          border: '1px solid var(--amber-b)',
+                          color: 'var(--amber)',
+                        }}
+                      >
+                        {t('statusIssue')}
+                      </span>
+                      {isAssigned && (
+                        <span
+                          style={{
+                            fontSize: '12px',
+                            fontWeight: 600,
+                            padding: '2px 8px',
+                            borderRadius: '999px',
+                            background: 'var(--cyan-d)',
+                            border: '1px solid var(--cyan-b)',
+                            color: 'var(--cyan)',
+                          }}
+                        >
+                          🔧 {t('techWorkingHere')}
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td style={{ padding: '12px 16px' }}>
                     {/*
-                      Selects the job for the Complete Maintenance card instead of
-                      firing the tx from the table — completion (escrow release)
-                      stays a single, deliberate action with evidence attached.
+                      Assignment is session-only state: marks the job as the
+                      technician's and scopes it into the Complete Maintenance
+                      dropdown. The tx itself stays behind "Complete & Get Paid".
                     */}
                     <button
                       type="button"
                       disabled={loading}
-                      onClick={() => {
-                        setSelectedJobId(row.id)
-                        setFlow('direct')
-                        completeCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-                      }}
+                      onClick={() => toggleAssignment(row)}
                       style={{
-                        background: 'var(--cyan-d)',
-                        border: '1px solid var(--cyan-b)',
-                        color: 'var(--cyan)',
+                        background: isAssigned ? 'var(--surface2)' : 'var(--cyan-d)',
+                        border: `1px solid ${isAssigned ? 'var(--border)' : 'var(--cyan-b)'}`,
+                        color: isAssigned ? 'var(--text2)' : 'var(--cyan)',
                         borderRadius: '6px',
                         padding: '4px 14px',
                         fontSize: '13px',
@@ -490,11 +534,12 @@ export default function TechnicianDashboard({ program, publicKey, onTxSuccess, a
                         opacity: loading ? 0.7 : 1,
                       }}
                     >
-                      {t('techTakeJob')}
+                      {isAssigned ? t('techRelease') : t('techTakeJob')}
                     </button>
                   </td>
                 </tr>
-              ))}
+                )
+              })}
             </tbody>
           </table>
         </div>
@@ -551,7 +596,7 @@ export default function TechnicianDashboard({ program, publicKey, onTxSuccess, a
                 <select
                   value={selectedJobId}
                   onChange={(e) => setSelectedJobId(e.target.value)}
-                  disabled={availableJobs.length === 0 || loading}
+                  disabled={assignedJobs.length === 0 || loading}
                   style={{
                     background: 'var(--surface2)',
                     border: '1px solid var(--border)',
@@ -563,10 +608,10 @@ export default function TechnicianDashboard({ program, publicKey, onTxSuccess, a
                     width: '100%',
                   }}
                 >
-                  {availableJobs.length === 0 && (
-                    <option value="">{t('techNoJobs')}</option>
+                  {assignedJobs.length === 0 && (
+                    <option value="">{t('techAssignHint')}</option>
                   )}
-                  {availableJobs.map((job) => (
+                  {assignedJobs.map((job) => (
                     <option key={job.id} value={job.id}>
                       #{job.assetId} — {job.asset} · {job.hospital ? truncatePubkey(job.hospital) : '—'}
                     </option>
