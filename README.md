@@ -10,7 +10,7 @@
 [![Anchor](https://img.shields.io/badge/Anchor-0.32.1-5BC0BE?style=for-the-badge)](https://www.anchor-lang.com/)
 [![React](https://img.shields.io/badge/React-18-E6B980?style=for-the-badge&logo=react&logoColor=white)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3FAF8F?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![Tests](https://img.shields.io/badge/Tests-9%20passing-3FAF8F?style=for-the-badge)](tests/)
+[![Tests](https://img.shields.io/badge/Tests-15%20passing-3FAF8F?style=for-the-badge)](tests/)
 
 <br/>
 
@@ -32,11 +32,11 @@
 | 🧱 Business Foundation | 3 jul | ✅ Entregado |
 | 🏗️ Arquitectura técnica del MVP | 10 jul | ✅ Entregado |
 | 🔍 Validación inicial con usuarios | 31 jul | ✅ Entregado |
-| ⚙️ MVP funcional | 21 ago | 🔄 En desarrollo |
-| 🎤 Pitch deck + Demo Day Readiness | 28 ago | ⏳ Pendiente |
+| ⚙️ MVP funcional | 21 ago | ✅ Entregado |
+| 🎤 Pitch deck + Demo Day Readiness | 28 ago | 🔄 En desarrollo |
 | 🚀 Demo Day | 31 ago | ⏳ Pendiente |
 
-El programa Anchor está deployado en Devnet con 9 tests pasando.
+El programa Anchor está deployado en Devnet con 15 tests pasando.
 
 ---
 
@@ -244,7 +244,13 @@ Light/Dark mode · Bilingüe EN/ES · Responsive · Wallet adapter (Phantom) · 
 anchor test
 ```
 
-9 tests pasando ✅
+15 tests pasando ✅
+
+| Suite (`describe`) | Casos cubiertos |
+|--------------------|-----------------|
+| `medovant` | Ciclo completo del activo (`initialize_asset` → `report_issue` → `complete_maintenance` → `decommission_asset`) · perfil de técnico · transiciones de estado · `reward > 0` · `has_one = hospital` · doble firma |
+| `medovant › edge cases (#7)` | Re-registro de técnico sobre PDA existente falla · técnico sin perfil registrado falla · firmante técnico distinto al dueño del profile falla · decommission con escrow activo falla (SOL protegido en vault) · decommission con vault drenado libera el rent al hospital |
+| `medovant › complete_maintenance replay (#36)` | `complete_maintenance` repetido falla: no drena el vault ni re-credita reputación |
 
 ---
 

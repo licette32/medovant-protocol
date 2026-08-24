@@ -2,7 +2,7 @@
 
 Reference document for **Medovant**: a maintenance escrow protocol on **Solana Devnet**, built with an **Anchor (Rust)** program and a **React + TypeScript (Vite)** web app in **`app/`**.
 
-**Last updated:** March 2026  
+**Last updated:** August 2026  
 **Program ID (Devnet):** `5JMd8ADy1KHBhohX6NLbz6WQdyCQTfLd55Gmzo2r34WD`
 
 ---
@@ -17,7 +17,7 @@ The SPA (`app/`) includes:
 - **Hospital dashboard:** protocol flow, **on-chain KPI cards**, equipment table with contextual actions and modals, activity feed, blockchain panel.
 - **Technician dashboard:** on-chain technician profile metrics, demo jobs, and completion form.
 
-Equipment **names and locations** are **not** stored on-chain; they are saved in **`localStorage`** (`assetNames.ts`) keyed by `wallet + assetId`.
+Equipment **names and locations** are **not** stored on-chain; they are saved in **Supabase** (`assets` table) and synced via `utils/assetMetadata.ts`, with a `localStorage` fallback for the demo when env vars are not configured.
 
 > **Root README note:** it still documents a `client/` Node client; the main product frontend is under **`app/`** (Vite + React).
 
@@ -136,7 +136,7 @@ cp target/idl/medovant.json app/src/idl/medovant.json
 - **Autonomous mode:** if no `assets` prop is passed, keeps legacy internal scan of IDs **1–5**.
 - **`refreshAssets()`:** calls `onAssetsChange` when provided; otherwise runs internal fetch.
 - After register/report/complete/decommission: **`refreshAssets()`** updates UI consistently.
-- **Modals:** register (stores local metadata before `initializeAsset`), report issue, complete (registers technician if missing + `completeMaintenance`), decommission.
+- **Modals:** register (persists metadata via `upsertAssetMeta` → Supabase before `initializeAsset`), report issue, complete (registers technician if missing + `completeMaintenance`), decommission.
 - Row action buttons include **`btn-issue`**, **`btn-complete`**, **`btn-decomm`** classes for light-mode CSS overrides (no logic changes).
 - Demo rows appear when no assets exist and wallet is connected.
 
@@ -149,7 +149,9 @@ cp target/idl/medovant.json app/src/idl/medovant.json
 | File | Purpose |
 |------|---------|
 | `utils/formatters.ts` | `mapAssetStatus`, `normalizeTxSignature`, `truncatePubkey` / `truncateSig`, `lamportsToSol` |
-| `utils/assetNames.ts` | `getAssetMeta`, `saveAssetMeta`, `getAssetDisplayName` |
+| `utils/assetMetadata.ts` | `getAssetMeta`, `getAssetDisplayName`, `upsertAssetMeta`, `hydrateAssetMetadata` (Supabase + localStorage fallback) |
+| `utils/evidence.ts` | `submitEvidence`, `fetchEvidenceForAsset`, `verifyEvidenceIntegrity`, `isEvidenceConfigured` |
+| `utils/supabase.ts` | `getSupabase`, `isSupabaseConfigured` (singleton Supabase client) |
 | `utils/solanaTxError.ts` | `toastAnchorTxError`, `SendTransactionError` logs |
 | `components/Toast.tsx` | Tx toasts + Explorer link |
 | `ActivityFeed.tsx` | Typed activity items with defensive fallback |
@@ -171,7 +173,7 @@ cp target/idl/medovant.json app/src/idl/medovant.json
 
 ## 6. Flow Summary (No Logic Changes)
 
-1. **Register asset:** local metadata → `initializeAsset` → `fetchAssets` / `refreshAssets`.
+1. **Register asset:** metadata via `upsertAssetMeta` (Supabase) → `initializeAsset` → `fetchAssets` / `refreshAssets`.
 2. **Report issue:** `reportIssue` sends lamports to vault → status `Issue Reported`.
 3. **Complete maintenance:** optional `registerTechnician` + `completeMaintenance` (hospital + technician) → vault release to technician.
 4. **Errors:** Anchor toasts + logs; Devnet low-SOL scenarios documented with user-facing hints.
@@ -226,7 +228,7 @@ Medovant-solana/
 ## 9. Known Constraints (Demo / Hackathon)
 
 1. **ID scan range:** Hospital dashboard uses **1–10** in parent-level fetch; autonomous table mode keeps **1–5**.
-2. **Asset metadata:** stored only in browser **localStorage**.
+2. **Asset metadata:** **Supabase** (`assets` table) with `localStorage` fallback when `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` are not configured (so the demo works without setup).
 3. **Demo technician:** local keypair, not production auth model.
 4. **No indexer:** no global off-chain list of all hospital assets.
 

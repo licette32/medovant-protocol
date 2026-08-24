@@ -2,7 +2,7 @@
 
 Documento de referencia del **Medovant**: protocolo de mantenimiento con escrow en **Solana Devnet**, programa **Anchor (Rust)** y aplicación web **React + TypeScript (Vite)** en la carpeta **`app/`**.
 
-**Última actualización:** marzo 2026  
+**Última actualización:** agosto 2026  
 **Program ID (Devnet):** `5JMd8ADy1KHBhohX6NLbz6WQdyCQTfLd55Gmzo2r34WD`
 
 ---
@@ -136,7 +136,7 @@ cp target/idl/medovant.json app/src/idl/medovant.json
 - **Modo autónomo:** si no se pasan `assets`, mantiene el fetch interno en IDs **1–5** (comportamiento histórico sin cambiar el bucle).
 - **`refreshAssets()`:** si existe `onAssetsChange`, lo invoca; si no, hace fetch interno.
 - Tras registro, reporte, completar o baja: **`refreshAssets()`** para sincronizar UI.
-- **Modales:** registro (guarda meta en localStorage antes de `initializeAsset`), reporte, completar (registro técnico si falta + `completeMaintenance`), decommission.
+- **Modales:** registro (persiste meta vía `upsertAssetMeta` → Supabase antes de `initializeAsset`), reporte, completar (registro técnico si falta + `completeMaintenance`), decommission.
 - Botones de fila con clases **`btn-issue`**, **`btn-complete`**, **`btn-decomm`** para overrides de **modo claro** en CSS (sin cambiar lógica).
 - Filas demo cuando no hay activos y wallet conectada.
 
