@@ -24,7 +24,7 @@
 
 ## Estado actual
 
-> **En incubación activa** — Solana Latam Labs · WayLearn · Junio–Agosto 2026
+> **Programa completado / Graduado** — Solana Latam Labs · WayLearn · Junio–Agosto 2026
 
 | Milestone | Fecha | Estado |
 |-----------|-------|--------|
@@ -33,8 +33,8 @@
 | 🏗️ Arquitectura técnica del MVP | 10 jul | ✅ Entregado |
 | 🔍 Validación inicial con usuarios | 31 jul | ✅ Entregado |
 | ⚙️ MVP funcional | 21 ago | ✅ Entregado |
-| 🎤 Pitch deck + Demo Day Readiness | 28 ago | 🔄 En desarrollo |
-| 🚀 Demo Day | 31 ago | ⏳ Pendiente |
+| 🎤 Pitch deck + Demo Day Readiness | 25 ago | ✅ Entregado |
+| 🚀 Demo Day | 31 ago | 🏁 Completado |
 
 El programa Anchor está deployado en Devnet con 15 tests pasando.
 
