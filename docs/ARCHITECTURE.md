@@ -1,52 +1,52 @@
-# Arquitectura técnica — Medovant Protocol
+# Technical Architecture — Medovant Protocol
 
-Documento de referencia para la arquitectura del sistema. Corresponde al Milestone 3 del programa de incubación Solana Latam Labs / WayLearn.
+Reference document for the system architecture.
 
 ---
 
-## Versiones
+## Versions
 
-| Versión | Estado | Descripción |
+| Version | Status | Description |
 |---------|--------|-------------|
-| v1.0 | ✅ Deployed (Devnet) | MVP técnico — hackathon |
-| v1.1 | 🔄 En desarrollo | Incubación — indexer + DB off-chain |
-| v2.0 | 📋 Planificado | Abstracción wallet + CMMS integration |
+| v1.0 | ✅ Deployed (Devnet) | Technical MVP — hackathon |
+| v1.1 | 🔄 In development | Incubation — indexer + off-chain DB |
+| v2.0 | 📋 Planned | Wallet abstraction + CMMS integration |
 
 ---
 
-## Capas del sistema
+## System layers
 
-### Capa 1 — Cliente (Browser)
+### Layer 1 — Client (Browser)
 
 **Stack:** React 18 + Vite + TypeScript + Tailwind CSS
 
-Dos modos diferenciados dentro de la misma aplicación:
-- **Hospital Mode:** registro de activos, reporte de incidencias, verificación de mantenimientos
-- **Technician Mode:** visualización de órdenes disponibles, cobro automático, reputación
+Two differentiated modes within the same application:
+- **Hospital Mode:** asset registration, issue reporting, maintenance verification
+- **Technician Mode:** available orders view, automatic payout, reputation
 
-**Principio de diseño:** el usuario no necesita entender wallets, SOL ni transacciones para operar. La complejidad blockchain opera por debajo de la interfaz.
+**Design principle:** the user does not need to understand wallets, SOL, or transactions to operate. Blockchain complexity runs underneath the interface.
 
-**Wallet integration:** `@solana/wallet-adapter` + Phantom. Target v1.1: abstracción de wallet para usuarios no cripto (wallets custodiales o firma delegada).
+**Wallet integration:** `@solana/wallet-adapter` + Phantom. Target v1.1: wallet abstraction for non-crypto users (custodial wallets or delegated signing).
 
 ---
 
-### Capa 2 — Solana (On-chain)
+### Layer 2 — Solana (On-chain)
 
 **Stack:** Anchor 0.32.1 + Rust
 
 **Program ID:** `5JMd8ADy1KHBhohX6NLbz6WQdyCQTfLd55Gmzo2r34WD`
 
-**Network:** Devnet → Mainnet (antes del Demo Day)
+**Network:** Devnet (prototype)
 
-#### Instrucciones
+#### Instructions
 
-| Instrucción | Firmantes | Efecto on-chain |
+| Instruction | Signers | On-chain effect |
 |-------------|-----------|----------------|
-| `register_technician` | técnico | Crea TechnicianProfile PDA |
-| `initialize_asset(asset_id)` | hospital | Crea Asset PDA, status = Active |
-| `report_issue(reward)` | hospital | Crea Vault PDA, transfiere SOL, failure_count++ |
-| `complete_maintenance` | hospital + técnico | invoke_signed libera SOL, jobs_completed++ |
-| `decommission_asset` | hospital | Cierra Asset PDA, devuelve rent |
+| `register_technician` | technician | Creates TechnicianProfile PDA |
+| `initialize_asset(asset_id)` | hospital | Creates Asset PDA, status = Active |
+| `report_issue(reward)` | hospital | Creates Vault PDA, transfers SOL, failure_count++ |
+| `complete_maintenance` | hospital + technician | invoke_signed releases SOL, jobs_completed++ |
+| `decommission_asset` | hospital | Closes Asset PDA, returns rent |
 
 #### Dual-Wallet `complete_maintenance` (PST Hand-Off)
 
@@ -62,29 +62,29 @@ Full specification: [`docs/PST_HANDOFF.md`](PST_HANDOFF.md)
 **Asset PDA**
 ```
 seeds: [b"equipment", hospital_pubkey, asset_id_u64_le]
-datos: asset_id, hospital, status, asset_name, failure_count, maintenance_reward, bump
-estados: Active (0) | IssueReported (1) | Decommissioned (2)
+data: hospital, asset_id, status, last_maintenance, bump, maintenance_reward, failure_count
+states: Active (0) | IssueReported (1) | UnderMaintenance (2) | Decommissioned (3)
 ```
 
 **Vault PDA**
 ```
 seeds: [b"vault", asset_pda]
-tipo: system-owned (space=0) — el único patrón correcto para escrow nativo de SOL
-liberación: invoke_signed con vault_seeds — no puede ser debitado via CPI ordinario
-datos: solo SOL (sin datos struct)
+type: system-owned (space=0) — the only correct pattern for native SOL escrow
+release: invoke_signed with vault_seeds — cannot be debited via ordinary CPI
+data: SOL only (no struct data)
 ```
 
 **TechnicianProfile PDA**
 ```
 seeds: [b"technician", tech_pubkey]
-datos: is_registered, jobs_completed, bump
-propósito: reputación verificable y portable entre instituciones
+data: technician, jobs_completed, total_earned, bump
+purpose: verifiable reputation, portable across institutions
 ```
 
-#### Mecanismo de escrow
+#### Escrow mechanism
 
 ```rust
-// report_issue: crea vault y bloquea SOL
+// report_issue: creates vault and locks SOL
 system_program::create_account(
     CpiContext::new_with_signer(
         ctx.accounts.system_program.to_account_info(),
@@ -97,135 +97,181 @@ system_program::create_account(
 )?;
 system_program::transfer(CpiContext::new(...), reward)?;
 
-// complete_maintenance: libera SOL al técnico
+// complete_maintenance: releases SOL to the technician
 system_program::transfer(
     CpiContext::new_with_signer(..., &[vault_seeds]),
     reward
 )?;
 ```
 
+#### Asset lifecycle and escrow flow
+
+The `AssetStatus` enum declares four states: `Active`, `IssueReported`, `UnderMaintenance`, `Decommissioned`. Only three are reachable — every transition below is enforced by a `require!` guard in its instruction.
+
+```mermaid
+stateDiagram-v2
+    [*] --> Active : initialize_asset
+    Active --> IssueReported : report_issue
+    IssueReported --> Active : complete_maintenance
+    Active --> Decommissioned : decommission_asset
+    Decommissioned --> [*]
+    note right of Decommissioned
+        Set and closed in the same instruction, so it is never persisted on-chain.
+    end note
+```
+
+`UnderMaintenance` is a reserved variant: no instruction in this version transitions to it.
+
+`Decommissioned` is terminal: `decommission_asset` sets the status and Anchor closes the asset PDA, returning its rent to the hospital. Closing is rejected while an issue is pending (`AssetHasPendingEscrow`).
+
+```mermaid
+sequenceDiagram
+    participant H as Hospital
+    participant P as Medovant program
+    participant A as MedicalAsset PDA
+    participant S as System Program
+    participant V as Vault PDA (system-owned)
+    participant T as Technician
+    participant TP as TechnicianProfile PDA
+
+    H->>P: report_issue(reward)
+    Note over H,P: hospital signs; funds vault rent + reward
+    P->>S: create_account (vault PDA seeds signer)
+    S->>V: new rent-exempt system-owned account
+    H->>V: transfer reward (CPI via program)
+    P->>A: status=IssueReported, maintenance_reward=reward, failure_count+1
+
+    H->>P: complete_maintenance (hospital signs)
+    T->>P: complete_maintenance (technician signs)
+    P->>V: transfer reward via invoke_signed (vault seeds)
+    V->>T: reward lamports
+    P->>A: status=Active, maintenance_reward=0
+    P->>TP: jobs_completed+1, total_earned+=reward
+```
+
+Note: after maintenance only rent-exempt lamports remain in the vault. `decommission_asset` drains that remainder to the hospital before the asset PDA closes, so no SOL is left in a vault without an owning asset.
+
 ---
 
-### Capa 3 — Off-chain (v1.1 en desarrollo)
+### Layer 3 — Off-chain (v1.1 in development)
 
 #### Event Indexer
 
 **Stack:** Helius RPC webhooks
 
-Escucha el log del programa on-chain y emite eventos cuando ocurren:
-- `AssetInitialized` → nuevo activo registrado
-- `IssueReported` → incidencia con escrow abierto
-- `MaintenanceCompleted` → pago liberado, reputación actualizada
-- `AssetDecommissioned` → activo dado de baja
+Listens to the on-chain program log and emits events as they occur:
+- `AssetInitialized` → new asset registered
+- `IssueReported` → issue with open escrow
+- `MaintenanceCompleted` → payment released, reputation updated
+- `AssetDecommissioned` → asset retired
 
-#### Base de datos
+#### Database
 
-**Stack:** PostgreSQL vía Supabase
+**Stack:** PostgreSQL via Supabase
 
-Tablas planificadas:
+Planned tables:
 ```
 assets
-  asset_pda       TEXT PRIMARY KEY   -- clave pública de la PDA on-chain
-  hospital        TEXT               -- pubkey del hospital propietario
-  name            TEXT               -- nombre del equipo
-  location        TEXT               -- ubicación física
-  asset_type      TEXT               -- tipo (ventilador, resonador, etc.)
+  asset_pda       TEXT PRIMARY KEY   -- on-chain PDA public key
+  hospital        TEXT               -- owner hospital pubkey
+  name            TEXT               -- equipment name
+  location        TEXT               -- physical location
+  asset_type      TEXT               -- type (ventilator, MRI, etc.)
   created_at      TIMESTAMPTZ
 
 maintenance_events
   id              UUID PRIMARY KEY
   asset_pda       TEXT REFERENCES assets
   event_type      TEXT               -- IssueReported | MaintenanceCompleted
-  tx_signature    TEXT               -- firma de la transacción Solana
-  evidence_url    TEXT               -- URL a foto/reporte en Supabase Storage
+  tx_signature    TEXT               -- Solana transaction signature
+  evidence_url    TEXT               -- URL to photo/report in Supabase Storage
   timestamp       TIMESTAMPTZ
 ```
 
-#### QR por activo (v1.1)
+#### QR per asset (v1.1)
 
-Cada equipo físico tendrá una etiqueta QR que codifica la URL:
+Each physical device will carry a QR tag encoding the URL:
 ```
 https://app.medovant.io/asset/{asset_pda}
 ```
 
-Al escanear, la app carga el historial completo del activo directamente desde la DB (metadata) y desde la cadena (estado actual).
+When scanned, the app loads the full asset history from the DB (metadata) and from the chain (current state).
 
 ---
 
-## Flujo completo del sistema
+## Full system flow
 
 ```
-Usuario (Hospital)
+User (Hospital)
     │
-    │  1. Conecta Phantom Wallet
+    │  1. Connects Phantom Wallet
     ▼
 React App
     │
-    │  2. Llama a initialize_asset(asset_id, name)
+    │  2. Calls initialize_asset(asset_id)
     ▼
-@coral-xyz/anchor → Phantom firma tx
+@coral-xyz/anchor → Phantom signs tx
     │
-    │  3. Transacción RPC a Devnet
+    │  3. RPC transaction to Devnet
     ▼
 Anchor Program
     │
-    │  4. Crea Asset PDA on-chain
+    │  4. Creates Asset PDA on-chain
     │     seeds: [equipment, hospital, asset_id]
     ▼
 Solana Devnet
     │
-    │  5. Emite evento AssetInitialized
+    │  5. Emits AssetInitialized event
     ▼
 Event Indexer (Helius) [v1.1]
     │
-    │  6. Persiste metadata en DB
+    │  6. Persists metadata in DB
     ▼
 PostgreSQL / Supabase [v1.1]
     │
-    │  7. Frontend consulta metadata
+    │  7. Frontend queries metadata
     ▼
-React App muestra inventario actualizado
+React App shows updated inventory
 ```
 
 ---
 
-## División on-chain / off-chain
+## On-chain / off-chain split
 
-| Dato | Dónde vive | Por qué |
+| Data | Where it lives | Why |
 |------|-----------|---------|
-| Estado del activo (Active/IssueReported/Decommissioned) | On-chain | Inmutable, auditable por cualquiera |
-| SOL bloqueado en escrow | On-chain | Trustless — nadie puede tomarlo unilateralmente |
-| Reputación del técnico (jobs_completed) | On-chain | Portable entre instituciones, no modificable |
-| Historial de transacciones | On-chain (Solana) | Inmutable por diseño |
-| Nombre y ubicación del equipo | Off-chain (DB) | No hay beneficio de inmutabilidad, reduce costos |
-| Evidencia de mantenimiento (fotos, PDFs) | Off-chain (Storage) | Archivos grandes no van on-chain |
-| Hash de evidencia (opcional) | On-chain | Para verificar integridad del archivo off-chain |
+| Asset status (Active/IssueReported/Decommissioned) | On-chain | Immutable, auditable by anyone |
+| SOL locked in escrow | On-chain | Trustless — no one can take it unilaterally |
+| Technician reputation (jobs_completed) | On-chain | Portable across institutions, not modifiable |
+| Transaction history | On-chain (Solana) | Immutable by design |
+| Equipment name and location | Off-chain (DB) | No immutability benefit, lower costs |
+| Maintenance evidence (photos, PDFs) | Off-chain (Storage) | Large files do not go on-chain |
+| Evidence hash (optional) | On-chain | To verify integrity of the off-chain file |
 
 ---
 
-## Riesgos técnicos
+## Technical risks
 
-Ver [TECHNICAL_DEBT.md](TECHNICAL_DEBT.md) para el detalle completo.
+See [TECHNICAL_DEBT.md](TECHNICAL_DEBT.md) for full detail.
 
-| Riesgo | Nivel | Mitigation |
+| Risk | Level | Mitigation |
 |--------|-------|------------|
-| Metadata en localStorage | 🔴 Alto | Migrar a Supabase (Semana 3) |
-| Discovery loop 1-10 | 🔴 Alto | getProgramAccounts o event indexer |
-| Secret key técnico en localStorage | 🔴 Alto | Wallet Phantom propia del técnico |
-| Barrera UX: usuario necesita Phantom | 🟡 Medio | Abstracción wallet en v2.0 |
-| CMMS integration (SAP, IBM Maximo) | 🟡 Medio | API pública en v2.0 |
-| Escrow en SOL para uso institucional | 🟡 Medio | Abstracción stablecoin en v2.0 |
-| Migración Devnet → Mainnet | 🟢 Bajo | Anchor upgradeable programs |
+| Metadata in localStorage | 🔴 High | Migrate to Supabase (Week 3) |
+| Discovery loop 1-10 | 🔴 High | getProgramAccounts or event indexer |
+| Technician secret key in localStorage | 🔴 High | Technician's own Phantom wallet |
+| UX barrier: user needs Phantom | 🟡 Medium | Wallet abstraction in v2.0 |
+| CMMS integration (SAP, IBM Maximo) | 🟡 Medium | Public API in v2.0 |
+| SOL escrow for institutional use | 🟡 Medium | Stablecoin abstraction in v2.0 |
 
 ---
 
-## Dependencias críticas
+## Critical dependencies
 
-| Dependencia | Versión | Propósito |
+| Dependency | Version | Purpose |
 |-------------|---------|-----------|
-| `@coral-xyz/anchor` | 0.32.1 | Genera tipos TypeScript del programa |
-| `@solana/wallet-adapter` | latest | Integración Phantom y otras wallets |
-| `@solana/web3.js` | latest | RPC, transacciones, PDAs |
-| Helius RPC | — | RPC confiable + webhooks para indexer (v1.1) |
+| `@coral-xyz/anchor` | 0.32.1 | Generates TypeScript types for the program |
+| `@solana/wallet-adapter` | latest | Phantom and other wallet integration |
+| `@solana/web3.js` | latest | RPC, transactions, PDAs |
+| Helius RPC | — | Reliable RPC + webhooks for indexer (v1.1) |
 | Supabase | — | PostgreSQL + Storage (v1.1) |
-| Solana Devnet / Mainnet | — | Red de producción |
+| Solana Devnet | — | Network used by this prototype |
