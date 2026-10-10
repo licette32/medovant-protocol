@@ -7,7 +7,8 @@
     "lint:fix": "prettier */*.js \"*/**/*{.js,.ts}\" -w",
     "test": "anchor test",
     "client": "anchor run client",
-    "client:devnet": "anchor run --provider.cluster devnet client"
+    "client:devnet": "anchor run --provider.cluster devnet client",
+    "seed:demo": "ts-node scripts/seed-demo.ts"
   },
   "dependencies": {
     "@coral-xyz/anchor": "^0.32.1"

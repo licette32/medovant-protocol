@@ -17,6 +17,6 @@
     "declarationMap": true,
     "moduleResolution": "node"
   },
-  "include": ["tests/**/*.ts", "client/**/*.ts", "target/types/**/*.ts", "idl/**/*.json"],
+  "include": ["tests/**/*.ts", "client/**/*.ts", "scripts/**/*.ts", "target/types/**/*.ts", "idl/**/*.json"],
   "exclude": ["node_modules"]
 }
