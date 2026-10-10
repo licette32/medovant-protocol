@@ -274,6 +274,16 @@ cd app && npm install && npm run dev
 
 > 💡 El técnico firma con su propia wallet conectada (Phantom) — el rol técnico usa tu wallet en modo demo. Asegurate de tener SOL en Devnet para las fees de transacción.
 
+### Seed reproducible para la demo (HK-01 · #74)
+
+Prepara el estado on-chain de la demo con un comando: registra al técnico (tu wallet en modo demo), crea 3 assets y reporta un issue con escrow en el primero. Es idempotente — correrlo dos veces no falla.
+
+```bash
+anchor run seed-demo --provider.cluster devnet
+```
+
+El script imprime las direcciones (PDAs) y firmas resultantes. Variables opcionales: `DEMO_ASSET_IDS="1,2,3"`, `DEMO_ISSUE_ASSET_ID="1"`, `DEMO_REWARD_LAMPORTS="500000"`.
+
 ---
 
 ## Roadmap
