@@ -6,6 +6,31 @@ use anchor_lang::system_program;
 
 declare_id!("5JMd8ADy1KHBhohX6NLbz6WQdyCQTfLd55Gmzo2r34WD");
 
+#[cfg(not(feature = "no-entrypoint"))]
+use solana_security_txt::security_txt;
+
+// Security contact metadata embedded in the deployed binary (SOL-01).
+// Project contact only — no personal data.
+#[cfg(not(feature = "no-entrypoint"))]
+security_txt! {
+    name: "Medovant",
+    project_url: "https://github.com/licette32/medovant-protocol",
+    contacts: "link:https://github.com/licette32/medovant-protocol/issues",
+    policy: "https://github.com/licette32/medovant-protocol/blob/main/docs/SECURITY.md",
+    source_code: "https://github.com/licette32/medovant-protocol",
+    preferred_languages: "en"
+}
+
+// Keep-alive: the crate only sets link_section=".security.txt" for
+// target_arch="bpf", but current toolchains build for target_arch="solana",
+// and verifiable-build linkers garbage-collect the unreferenced static.
+// Referencing it from a #[used] static keeps the markers in the binary on
+// every toolchain, with no runtime cost.
+#[cfg(not(feature = "no-entrypoint"))]
+#[used]
+#[allow(dead_code)]
+static __MEDOVANT_SECURITY_TXT_KEEP: &str = SECURITY_TXT;
+
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, PartialEq, Eq)]
 #[repr(u8)]
 pub enum AssetStatus {
