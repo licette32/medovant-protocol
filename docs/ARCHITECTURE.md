@@ -135,18 +135,18 @@ sequenceDiagram
     participant TP as TechnicianProfile PDA
 
     H->>P: report_issue(reward)
-    Note over H,P: hospital signs; funds vault rent + reward
+    Note over H,P: hospital signs and funds vault rent plus reward
     P->>S: create_account (vault PDA seeds signer)
     S->>V: new rent-exempt system-owned account
     H->>V: transfer reward (CPI via program)
-    P->>A: status=IssueReported, maintenance_reward=reward, failure_count+1
+    P->>A: status = IssueReported, maintenance_reward = reward, failure_count incremented
 
     H->>P: complete_maintenance (hospital signs)
     T->>P: complete_maintenance (technician signs)
     P->>V: transfer reward via invoke_signed (vault seeds)
     V->>T: reward lamports
-    P->>A: status=Active, maintenance_reward=0
-    P->>TP: jobs_completed+1, total_earned+=reward
+    P->>A: status = Active, maintenance_reward = 0
+    P->>TP: jobs_completed incremented, total_earned increased by reward
 ```
 
 Note: after maintenance only rent-exempt lamports remain in the vault. `decommission_asset` drains that remainder to the hospital before the asset PDA closes, so no SOL is left in a vault without an owning asset.
