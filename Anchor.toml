@@ -24,3 +24,10 @@ client = "yarn ts-node client/client.ts"
 seed-demo = "yarn ts-node scripts/seed-demo.ts"
 
 [hooks]
+
+[test]
+startup_wait = 60000
+
+[[test.genesis]]
+address = "5JMd8ADy1KHBhohX6NLbz6WQdyCQTfLd55Gmzo2r34WD"
+program = "target/deploy/medovant.so"
